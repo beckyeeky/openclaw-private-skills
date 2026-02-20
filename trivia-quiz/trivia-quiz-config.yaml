@@ -1,0 +1,43 @@
+# trivia-quiz 技能配置示例
+# 将此配置添加到 OpenClaw 的 skills 配置中
+
+skills:
+  trivia-quiz:
+    # 技能触发词
+    triggers: ["冷门知识", "trivia", "知识问答", "quiz"]
+    
+    # 技能描述
+    description: "冷门知识选择题游戏"
+    
+    # 执行命令
+    command: "node /root/.openclaw/workspace/skills/trivia-quiz/scripts/entry_final.mjs"
+    
+    # 参数映射（OpenClaw 会将用户消息映射为参数）
+    args_mapping:
+      # 当用户说"冷门知识"时，传递 "start" 参数
+      - match: "冷门知识|trivia|知识问答|quiz"
+        args: ["start"]
+      
+      # 处理 callback_data（如 trivia_q1_correct）
+      - match: "trivia_q(\\d+)_(correct|wrong_\\d+)"
+        args: ["answer", "$1", "$2"]
+      
+      # 处理导航按钮
+      - match: "trivia_continue_(\\d+)"
+        args: ["continue", "$1"]
+      
+      - match: "trivia_article_(\\d+)"
+        args: ["article", "$1"]
+      
+      - match: "trivia_end"
+        args: ["end"]
+      
+      - match: "trivia_restart"
+        args: ["start"]
+    
+    # 技能元数据
+    metadata:
+      category: "游戏"
+      requires_api_key: true
+      interactive: true
+      supports_inline_buttons: true
