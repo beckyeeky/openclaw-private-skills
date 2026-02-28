@@ -12,7 +12,7 @@ Ensemble Jury is an OpenClaw skill that implements a "blind review" mechanism si
 ### Key Features
 
 - **Intelligence Gathering**: Real-time data via Perplexity & Google Search
-- **Blind Review**: 4 independent reviewers (Kimi, Gemini Pro, DeepSeek Reasoner, GPT-5.2)
+- **Blind Review**: 4 independent reviewers (Kimi, Gemini 3.1 Pro, DeepSeek Reasoner, GPT-5.2)
 - **Independent Arbitration**: Claude Sonnet 4.6 as the neutral judge
 - **Anonymous Evaluation**: Reviewers don't know each other's existence
 

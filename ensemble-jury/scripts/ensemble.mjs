@@ -109,6 +109,8 @@ async function gatherIntelligence() {
     ], { timeout: 30000 });
     
     let out = '';
+      p.stdout.setEncoding('utf8');
+      p.stderr.setEncoding('utf8');
     let errOut = '';
     p.stdout.on('data', (d) => out += d);
     p.stderr.on('data', (d) => {
@@ -137,6 +139,8 @@ async function gatherIntelligence() {
     ], { timeout: 30000 });
     
     let out = '';
+      p.stdout.setEncoding('utf8');
+      p.stderr.setEncoding('utf8');
     let errOut = '';
     p.stdout.on('data', (d) => out += d);
     p.stderr.on('data', (d) => {
@@ -174,7 +178,7 @@ async function blindReview(query, intelligence) {
   
   const reviewers = [
     { agent: 'kimi', name: 'Reviewer A' },
-    { agent: 'gemini', name: 'Reviewer B' },
+    { agent: 'gemini-3-1-pro', name: 'Reviewer B' },
     { agent: 'deepseek', name: 'Reviewer C' },
     { agent: 'gpt-5.2', name: 'Reviewer D' }
   ];
@@ -195,6 +199,8 @@ async function blindReview(query, intelligence) {
       ], { timeout: 90000 });  // 增加到90秒
       
       let out = '';
+      p.stdout.setEncoding('utf8');
+      p.stderr.setEncoding('utf8');
       let errOut = '';
       p.stdout.on('data', (d) => out += d);
       p.stderr.on('data', (d) => {
@@ -275,6 +281,8 @@ ${anonymizedReviews}
     ], { timeout: 180000 });  // 增加到180秒
     
     let out = '';
+      p.stdout.setEncoding('utf8');
+      p.stderr.setEncoding('utf8');
     let errOut = '';
     p.stdout.on('data', (d) => out += d);
     p.stderr.on('data', (d) => {

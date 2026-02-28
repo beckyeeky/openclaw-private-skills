@@ -43,7 +43,7 @@ graph TD
     B -->|Parallel| D[Google Search]
     C & D --> E{Blind Review}
     E -->|Parallel| F[Reviewer A: Kimi]
-    E -->|Parallel| G[Reviewer B: Gemini]
+    E -->|Parallel| G[Reviewer B: Gemini 3.1 Pro]
     E -->|Parallel| H[Reviewer C: DeepSeek]
     E -->|Parallel| L[Reviewer D: GPT-5.2]
     F & G & H & L --> I{Independent Arbitration}
