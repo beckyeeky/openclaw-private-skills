@@ -37,19 +37,24 @@ function loadQuestions() {
 }
 
 // 获取格式化的问题
+function normalizeOptionText(option, index) {
+  const emojiPrefix = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][index];
+  const cleanText = String(option)
+    .replace(/^[1-4]️⃣\s*/, '')
+    .replace(/^\d[.)、]\s*/, '')
+    .trim();
+  return `${emojiPrefix} ${cleanText}`;
+}
+
 function formatQuestion(question) {
-  const optionsText = question.options.map((opt, i) => {
-    // 移除可能存在的 emoji 前缀，重新添加标准 emoji
-    const cleanText = opt.replace(/^[1-4]️⃣\s*/, '').replace(/^\d\.\s*/, '');
-    const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][i];
-    return `${emoji} ${cleanText}`;
-  }).join('\n');
-  
+  const normalizedOptions = question.options.map(normalizeOptionText);
+  const optionsText = normalizedOptions.join('\n');
+
   return {
-    text: `🎯 *${question.category}类*\n\n${question.question}\n\n${optionsText}`,
-    options: question.options.map((opt, i) => ({
+    text: `🎯 ${question.category}类\n\n${question.question}\n\n${optionsText}`,
+    options: normalizedOptions.map((label, i) => ({
       text: ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][i],
-      callback_data: `trivia_q${question.id}_${i === question.correct ? 'correct' : 'wrong_' + i}`
+      callback_data: `trivia_q${question.id}_${i}`
     })),
     correct: question.correct
   };
@@ -65,21 +70,20 @@ function main() {
     
     switch (command) {
       case 'start': {
-        // 初始化游戏状态 (state.mjs init 会调用 trivia.mjs list_ids 获取全量 ID)
-        execSync(`node "${join(__dirname, 'state.mjs')}" init`, { encoding: 'utf-8' });
+        // 初始化游戏状态并返回本局题目池
+        const initRaw = execSync(`node "${join(__dirname, 'state.mjs')}" init`, { encoding: 'utf-8' }).trim();
+        const initData = JSON.parse(initRaw);
 
         // 后台检查备用题库（不阻塞游戏启动）
         try {
           execSync(`node "${join(__dirname, 'refill.mjs')}" --check-only`, { encoding: 'utf-8', timeout: 5000 });
         } catch { /* 检查失败不阻断 */ }
 
-        // 随机选 5 道题，排除已答（新游戏时无已答题）
-        const shuffled = [...questions].sort(() => 0.5 - Math.random());
-        const selected = shuffled.slice(0, 5);
+        const selectedIds = initData.question_pool || [];
         console.log(JSON.stringify({
-          total: selected.length,
-          question_ids: selected.map(q => q.id),
-          message: '🎮 冷门知识挑战开始！\n\n共 5 道题，准备好挑战你的知识边界了吗？'
+          total: selectedIds.length,
+          question_ids: selectedIds,
+          message: `🎮 冷门知识挑战开始！\n\n共 ${selectedIds.length} 道题，准备好挑战你的知识边界了吗？`
         }));
         break;
       }
@@ -112,7 +116,7 @@ function main() {
         
       case 'check': {
         const id = parseInt(args[1]);
-        const answer = parseInt(args[2]); // 用户选择的索引
+        const answer = parseInt(args[2], 10); // 用户选择的索引
         const q = questions.find(q => q.id === id);
         if (!q) {
           console.error(JSON.stringify({ error: '题目不存在' }));

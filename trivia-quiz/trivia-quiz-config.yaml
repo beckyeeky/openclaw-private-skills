@@ -18,8 +18,8 @@ skills:
       - match: "冷门知识|trivia|知识问答|quiz"
         args: ["start"]
       
-      # 处理 callback_data（如 trivia_q1_correct）
-      - match: "trivia_q(\\d+)_(correct|wrong_\\d+)"
+      # 处理 callback_data（如 trivia_q1_2）
+      - match: 'trivia_q(\d+)_(\d+)'
         args: ["answer", "$1", "$2"]
       
       # 处理导航按钮

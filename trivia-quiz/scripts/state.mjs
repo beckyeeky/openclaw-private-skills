@@ -8,6 +8,7 @@
  *   node state.mjs record <qid> <correct|wrong> # 记录答题结果
  *   node state.mjs next <pool_ids...>           # 获取下一题（排除已答）
  *   node state.mjs summary                      # 本局统计
+ *   node state.mjs current                      # 获取当前会话原始状态
  *   node state.mjs backup_status               # 查看备用题库状态
  *   node state.mjs backup_used <qid>           # 标记备用题已使用
  */
@@ -165,6 +166,23 @@ switch (cmd) {
     break;
   }
 
+  case 'current': {
+    const state = loadState();
+    if (!state) {
+      console.log(JSON.stringify({ error: 'no active game' }));
+      break;
+    }
+    console.log(JSON.stringify({
+      session_id: state.session_id,
+      started_at: state.started_at,
+      score: state.score,
+      answered_ids: state.answered.map(a => a.qid),
+      question_pool: state.question_pool || [],
+      remaining_ids: (state.question_pool || []).filter(id => !state.answered.some(a => a.qid === id))
+    }));
+    break;
+  }
+
   case 'backup_status': {
     const bs = loadBackupState();
     const needs_refill = bs.available.length < 10;
@@ -202,5 +220,5 @@ switch (cmd) {
   }
 
   default:
-    console.log('使用方法: node state.mjs <init|record|next|summary|backup_status|backup_used|backup_add>');
+    console.log('使用方法: node state.mjs <init|record|next|summary|current|backup_status|backup_used|backup_add>');
 }

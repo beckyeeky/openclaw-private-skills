@@ -27,7 +27,7 @@ node skill_wrapper.mjs trivia-quiz start
 ```
 
 ### 2. Handle Answer (Callback)
-**Trigger**: Callback data `trivia_q{id}_{correct|wrong_idx}`
+**Trigger**: Callback data `trivia_q{id}_{0-3}`
 **Action**:
 ```bash
 # Example: User clicked answer index 2 for question 10
@@ -49,10 +49,34 @@ node scripts/entry_final.mjs continue 10
 1.  **User**: "冷门知识"
 2.  **AI**: Calls `node skill_wrapper.mjs trivia-quiz start`
 3.  **Tool**: Returns JSON `{ "skill": "trivia-quiz", "action": "send_message", "data": { ... } }`
-4.  **AI**: Calls `message` tool with `message` and `buttons` from `data`.
+4.  **AI**: Calls `message` tool with `message` and `buttons` from `data`, preserving the exact line breaks and using Telegram inline buttons for `1️⃣ 2️⃣ 3️⃣ 4️⃣`.
 
 ## Troubleshooting
 
 - **If tool fails**: Report error to user, do NOT invent a question.
 - **If user inputs text (1-4)**: Politely ask them to click the buttons.
 - **If callback is 'trivia_continue_undefined'**: The state might be lost. Ask user to start a new game with "冷门知识".
+
+
+## Output Contract
+
+- Always render the question text exactly in this structure, without adding greetings or commentary:
+
+```text
+🎯 {分类}类
+
+{题目}
+
+1️⃣ {选项1}
+2️⃣ {选项2}
+3️⃣ {选项3}
+4️⃣ {选项4}
+```
+
+- Always send Telegram inline buttons together with the question message.
+- Always expose exactly four answer buttons with labels `1️⃣`, `2️⃣`, `3️⃣`, `4️⃣`.
+- Always map button callback data to the numeric answer index format `trivia_q{id}_{0-3}` so the runtime can route to `answer <id> <index>` deterministically.
+- If the host cannot render inline buttons, tell the user the environment does not support them instead of pretending they were sent.
+
+- Reject stale or out-of-session callback payloads instead of answering arbitrary question IDs.
+- Treat `trivia_continue_*` as valid only when the referenced question is still pending in the active session.
