@@ -52,8 +52,10 @@ function sanitizeId(input) {
 
 function sanitizeAnswer(input) {
   if (input === undefined || input === null) return null;
-  const num = parseInt(input, 10);
-  if (isNaN(num) || num < 0 || num > 10) return null;
+  const normalized = String(input).trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const num = parseInt(normalized, 10);
+  if (isNaN(num) || num < 0 || num > 3) return null;
   return num;
 }
 
@@ -102,11 +104,18 @@ function safeJsonParse(str, context = 'unknown') {
 }
 
 function formatButtons(options) {
-  const rows = [];
-  for (let i = 0; i < options.length; i += 2) {
-    rows.push(options.slice(i, i + 2));
-  }
-  return rows;
+  return [options];
+}
+
+async function getCurrentState() {
+  const currentResult = await run(DEPS.state, ['current']).catch(() => '{}');
+  return safeJsonParse(currentResult, 'current');
+}
+
+function isQuestionPending(stateData, questionId) {
+  if (!stateData || stateData.error) return false;
+  const qid = Number(questionId);
+  return Array.isArray(stateData.remaining_ids) && stateData.remaining_ids.includes(qid);
 }
 
 async function main() {
@@ -115,9 +124,6 @@ async function main() {
   
   switch (command) {
     case 'start': {
-      // 清理旧状态，开始新游戏
-      await run(DEPS.state, ['init']).catch(() => {});
-      
       const startResult = await run(DEPS.trivia, ['start']);
       const startData = safeJsonParse(startResult, 'start');
       
@@ -149,6 +155,16 @@ async function main() {
         console.log(JSON.stringify({ 
           error: '参数无效',
           details: { qid: cleanQid, answer: cleanAnswer }
+        }));
+        break;
+      }
+
+      const currentState = await getCurrentState();
+      if (!isQuestionPending(currentState, cleanQid)) {
+        console.log(JSON.stringify({
+          error: '题目不在当前游戏中，或已作答',
+          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]],
+          metadata: { action: 'invalid_question', question_id: cleanQid }
         }));
         break;
       }
@@ -194,7 +210,7 @@ async function main() {
           action: 'show_result',
           question_id: cleanQid,
           correct: checkData.correct,
-          has_next: hasNext,
+          has_next: Boolean(hasNext),
           next_question_id: nextData.next_id,
           score: stateData.score
         }
@@ -207,6 +223,16 @@ async function main() {
       
       if (!cleanQid) {
         console.log(JSON.stringify({ error: '无效的题目ID' }));
+        break;
+      }
+
+      const currentState = await getCurrentState();
+      if (!isQuestionPending(currentState, cleanQid)) {
+        console.log(JSON.stringify({
+          error: '下一题状态已失效，请重新开始',
+          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]],
+          metadata: { action: 'stale_continue', question_id: cleanQid }
+        }));
         break;
       }
       
