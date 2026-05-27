@@ -2,12 +2,12 @@
 
 > Multi-model ensemble analysis with blind review mechanism
 
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-Skill-blue)](https://openclaw.ai)
+[![Hermes](https://img.shields.io/badge/Hermes-Skill-blue)](https://hermes-agent.nousresearch.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## ⚖️ Overview
 
-Ensemble Jury is an OpenClaw skill that implements a "blind review" mechanism similar to academic peer review. It gathers intelligence, solicits independent answers from multiple top-tier models, and uses Claude as a separate arbitrator to synthesize a final, unbiased, comprehensive answer.
+Ensemble Jury is an Hermes skill that implements a "blind review" mechanism similar to academic peer review. It gathers intelligence, solicits independent answers from multiple top-tier models, and uses Claude as a separate arbitrator to synthesize a final, unbiased, comprehensive answer.
 
 ### Key Features
 
@@ -31,7 +31,7 @@ node scripts/ensemble.mjs "Your question here"
 ## 📋 Requirements
 
 - **Node.js**: Runtime environment
-- **OpenClaw**: Must be installed and configured
+- **Hermes**: Must be installed and configured
 - **Skills**: `perplexity-safe`, `google-search`
 - **Agents**: `kimi`, `gemini`, `deepseek`, `gpt-5.2`, `claude`
 
@@ -91,5 +91,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- Built for [OpenClaw](https://openclaw.ai)
+- Built for [Hermes](https://hermes-agent.nousresearch.com)
 - Inspired by academic peer review processes

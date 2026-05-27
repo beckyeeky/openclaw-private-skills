@@ -1,6 +1,6 @@
 ---
 name: model-hub-manager
-description: Manage OpenClaw model and provider configurations. Use when the user needs to add, remove, or list AI models and providers in the OpenClaw config. Supports adding providers with baseUrl/apiKey, adding models with aliases, removing entries, and viewing all configurations. Activate on 'add model', 'remove model', 'list models', 'add provider', 'model config', or when managing OpenClaw AI configurations.
+description: Manage Hermes model and provider configurations. Use when the user needs to add, remove, or list AI models and providers in the Hermes config. Supports adding providers with baseUrl/apiKey, adding models with aliases, removing entries, and viewing all configurations. Activate on 'add model', 'remove model', 'list models', 'add provider', 'model config', or when managing Hermes AI configurations.
 metadata:
   clawdbot:
     emoji: 🤖
@@ -10,11 +10,11 @@ metadata:
 
 # Model Hub Manager
 
-> 中转站模型管理器 - 一键管理 OpenClaw Provider 和模型配置
+> 中转站模型管理器 - 一键管理 Hermes Provider 和模型配置
 
 ## Overview
 
-A utility skill for managing AI **providers** and **models** in OpenClaw. It simplifies the process of:
+A utility skill for managing AI **providers** and **models** in Hermes. It simplifies the process of:
 - Adding new **providers** (with baseUrl, apiKey)
 - Adding **models** to providers (with optional aliases)
 - Removing obsolete entries
@@ -38,7 +38,7 @@ node scripts/add-model.mjs provider add aimax https://api.aimax.com/v1 sk-your-a
 **Example - Add without API key (configure later):**
 ```bash
 node scripts/add-model.mjs provider add aimax https://api.aimax.com/v1
-# Then manually edit ~/.openclaw/openclaw.json to add apiKey
+# Then manually edit ~/.hermes/config.yaml to add apiKey
 ```
 
 ### 2. Add Models to the Provider
@@ -100,17 +100,17 @@ node scripts/add-model.mjs model add aimax claude-3-opus-20240229 opus
 node scripts/add-model.mjs provider list
 node scripts/add-model.mjs model list
 
-# Step 4: Restart OpenClaw
-openclaw gateway restart
+# Step 4: Restart Hermes
+hermes gateway restart
 
 # Step 5: Use the model
-openclaw models | grep opus
+hermes models | grep opus
 # Output should show: aimax/claude-3-opus-20240229 → "opus"
 ```
 
 ## Provider Configuration Structure
 
-When you add a provider, it creates this structure in `~/.openclaw/openclaw.json`:
+When you add a provider, it creates this structure in `~/.hermes/config.yaml`:
 
 ```json
 {
@@ -188,12 +188,12 @@ node add-model.mjs model add aimax claude-3-opus opus
 
 All changes are saved to:
 ```
-~/.openclaw/openclaw.json
+~/.hermes/config.yaml
 ```
 
-**Important:** After modifying the config, restart OpenClaw:
+**Important:** After modifying the config, restart Hermes:
 ```bash
-openclaw gateway restart
+hermes gateway restart
 ```
 
 ## Alias System
@@ -217,13 +217,13 @@ Common errors and solutions:
 | Provider not found | First run `provider add` to create the provider |
 | Model already exists | Use `model remove` first, or update alias |
 | Provider has models | Remove all models before removing provider |
-| Config not found | Check OpenClaw installation |
+| Config not found | Check Hermes installation |
 
 ## Requirements
 
 - **Node.js**: Runtime environment
-- **OpenClaw**: Must be installed at `~/.openclaw/`
-- **Write Access**: To `~/.openclaw/openclaw.json`
+- **Hermes**: Must be installed at `~/.hermes/`
+- **Write Access**: To `~/.hermes/config.yaml`
 
 ## Anti-Patterns
 
@@ -252,8 +252,8 @@ node scripts/add-model.mjs provider add <name> <base-url>
 ### Changes not reflecting
 ```bash
 # Always restart after config changes
-openclaw gateway restart
+hermes gateway restart
 
 # Verify with
-openclaw models
+hermes models
 ```

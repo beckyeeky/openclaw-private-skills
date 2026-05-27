@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
+const CONFIG_PATH = join(homedir(), '.hermes', 'config.yaml');
 
 // 默认模型模板
 const MODEL_TEMPLATE = {
@@ -293,7 +293,7 @@ switch (effectiveResource) {
         const config = loadConfig();
         const newConfig = addProvider(config, name, baseUrl, apiKey);
         saveConfig(newConfig);
-        console.log(`\n🚀 重启 OpenClaw 后生效: openclaw gateway restart`);
+        console.log(`\n🚀 重启 Hermes 后生效: hermes gateway restart`);
         break;
       }
 
@@ -308,7 +308,7 @@ switch (effectiveResource) {
         const newConfig = removeProvider(config, name);
         if (newConfig) {
           saveConfig(newConfig);
-          console.log(`\n🚀 重启 OpenClaw 后生效: openclaw gateway restart`);
+          console.log(`\n🚀 重启 Hermes 后生效: hermes gateway restart`);
         }
         break;
       }
@@ -339,7 +339,7 @@ switch (effectiveResource) {
         const config = loadConfig();
         const newConfig = addModel(config, provider, modelId, alias);
         saveConfig(newConfig);
-        console.log(`\n🚀 重启 OpenClaw 后生效: openclaw gateway restart`);
+        console.log(`\n🚀 重启 Hermes 后生效: hermes gateway restart`);
         break;
       }
 
@@ -354,7 +354,7 @@ switch (effectiveResource) {
         const newConfig = removeModel(config, provider, modelId);
         if (newConfig) {
           saveConfig(newConfig);
-          console.log(`\n🚀 重启 OpenClaw 后生效: openclaw gateway restart`);
+          console.log(`\n🚀 重启 Hermes 后生效: hermes gateway restart`);
         }
         break;
       }

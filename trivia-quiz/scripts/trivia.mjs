@@ -36,10 +36,20 @@ function loadQuestions() {
   }
 }
 
+// 移除 HTML 标签及 eliminate 等自定义标记
+function stripTags(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/<\/?eliminate[^>]*>/gi, '')
+    .replace(/<\/?p[^>]*>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
 // 获取格式化的问题
 function normalizeOptionText(option, index) {
   const emojiPrefix = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][index];
-  const cleanText = String(option)
+  const cleanText = stripTags(String(option))
     .replace(/^[1-4]️⃣\s*/, '')
     .replace(/^\d[.)、]\s*/, '')
     .trim();
@@ -51,10 +61,10 @@ function formatQuestion(question) {
   const optionsText = normalizedOptions.join('\n');
 
   return {
-    text: `🎯 ${question.category}类\n\n${question.question}\n\n${optionsText}`,
+    text: `🎯 ${question.category}类\n\n${stripTags(question.question)}\n\n${optionsText}`,
     options: normalizedOptions.map((label, i) => ({
       text: ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][i],
-      callback_data: `trivia_q${question.id}_${i}`
+      callback_data: `trivia:q${question.id}:${i}`
     })),
     correct: question.correct
   };

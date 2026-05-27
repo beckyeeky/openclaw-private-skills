@@ -163,7 +163,7 @@ async function main() {
       if (!isQuestionPending(currentState, cleanQid)) {
         console.log(JSON.stringify({
           error: '题目不在当前游戏中，或已作答',
-          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]],
+          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia:restart' }]],
           metadata: { action: 'invalid_question', question_id: cleanQid }
         }));
         break;
@@ -191,15 +191,15 @@ async function main() {
       if (hasNext) {
         message = `${checkData.message}\n\n---\n\n🎮 已答 ${stateData.total || 0} 题（对 ${stateData.score?.correct || 0}/错 ${stateData.score?.wrong || 0}）\n\n接下来？`;
         buttons = [
-          [{ text: '➡️ 继续答题', callback_data: `trivia_continue_${nextData.next_id}` }],
-          [{ text: '📖 查看本题文章', callback_data: `trivia_article_${cleanQid}` }],
-          [{ text: '🏁 结束游戏', callback_data: 'trivia_end' }]
+          [{ text: '➡️ 继续答题', callback_data: `trivia:continue:${nextData.next_id}` }],
+          [{ text: '📖 查看本题文章', callback_data: `trivia:article:${cleanQid}` }],
+          [{ text: '🏁 结束游戏', callback_data: 'trivia:end' }]
         ];
       } else {
         message = `${checkData.message}\n\n${stateData.message || '🎉 游戏结束！'}`;
         buttons = [
-          [{ text: '📖 查看本题文章', callback_data: `trivia_article_${cleanQid}` }],
-          [{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]
+          [{ text: '📖 查看本题文章', callback_data: `trivia:article:${cleanQid}` }],
+          [{ text: '🔄 重新开始', callback_data: 'trivia:restart' }]
         ];
       }
       
@@ -230,7 +230,7 @@ async function main() {
       if (!isQuestionPending(currentState, cleanQid)) {
         console.log(JSON.stringify({
           error: '下一题状态已失效，请重新开始',
-          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]],
+          buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia:restart' }]],
           metadata: { action: 'stale_continue', question_id: cleanQid }
         }));
         break;
@@ -263,7 +263,7 @@ async function main() {
       
       console.log(JSON.stringify({
         message: `📚 ${articleData.title || '文章'}\n\n${articleData.article || '暂无内容'}`,
-        buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]]
+        buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia:restart' }]]
       }));
       break;
     }
@@ -274,7 +274,7 @@ async function main() {
       
       console.log(JSON.stringify({
         message: `🏁 游戏结束！\n\n${stateData.message || `共答 ${stateData.total || 0} 题`}`,
-        buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia_restart' }]]
+        buttons: [[{ text: '🔄 重新开始', callback_data: 'trivia:restart' }]]
       }));
       break;
     }

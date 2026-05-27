@@ -1,5 +1,5 @@
 # trivia-quiz 技能配置示例
-# 将此配置添加到 OpenClaw 的 skills 配置中
+# 将此配置添加到 Hermes 的 skills 配置中
 
 skills:
   trivia-quiz:
@@ -10,9 +10,9 @@ skills:
     description: "冷门知识选择题游戏"
     
     # 执行命令
-    command: "node /root/.openclaw/workspace/skills/trivia-quiz/scripts/entry_final.mjs"
+    command: "node /root/.hermes/workspace/skills/trivia-quiz/scripts/entry_final.mjs"
     
-    # 参数映射（OpenClaw 会将用户消息映射为参数）
+    # 参数映射（Hermes 会将用户消息映射为参数）
     args_mapping:
       # 当用户说"冷门知识"时，传递 "start" 参数
       - match: "冷门知识|trivia|知识问答|quiz"

@@ -107,7 +107,7 @@ async function generateQuestion(topic) {
   // 注意：这里使用 node -e 调用 http 请求，因为环境可能没有 curl 或 fetch 支持不全
   // 实际环境中建议使用专门的 LLM 客户端库
   
-  // 这里简化为直接调用 openclaw agent (如果支持 json 输出最好，否则需要解析)
+  // 这里简化为直接调用 hermes agent (如果支持 json 输出最好，否则需要解析)
   // 为了稳定性，我们还是用 node http request
   
   const result = run(`node -e "
@@ -149,10 +149,10 @@ req.end();
   } catch {
     log('Gemini 生成失败，切换到 Kimi K2.5 (Fallback)...');
     try {
-      // Fallback: 使用 OpenClaw CLI 调用 Kimi Agent
+      // Fallback: 使用 Hermes CLI 调用 Kimi Agent
       // 这里使用 execSync 直接调用，避免复杂的 HTTP 构造
       // JSON.stringify(prompt) 确保特殊字符在 Shell 中正确传递
-      const kimiCmd = `openclaw agent --agent kimi --message ${JSON.stringify(prompt)}`;
+      const kimiCmd = `hermes agent --agent kimi --message ${JSON.stringify(prompt)}`;
       const kimiRaw = execSync(kimiCmd, { encoding: 'utf-8', timeout: 60000, maxBuffer: 1024 * 1024 }).trim();
       
       // 清理可能存在的 Markdown 代码块标记 (```json ... ```)

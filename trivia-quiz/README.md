@@ -2,12 +2,12 @@
 
 > 冷门知识选择题游戏 - Fun trivia game with inline buttons and detailed explanations
 
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-Skill-blue)](https://openclaw.ai)
+[![Hermes](https://img.shields.io/badge/Hermes-Skill-blue)](https://hermes-agent.nousresearch.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🎯 Overview
 
-Trivia Quiz is an OpenClaw skill that provides a fun trivia game experience with multiple-choice questions. It features inline buttons for answering, detailed explanations after each question, and articles for further learning.
+Trivia Quiz is an Hermes skill that provides a fun trivia game experience with multiple-choice questions. It features inline buttons for answering, detailed explanations after each question, and articles for further learning.
 
 ### Key Features
 
@@ -48,7 +48,7 @@ node scripts/entry_final.mjs end
 ## 📋 Requirements
 
 - **Node.js**: Runtime environment
-- **OpenClaw**: Must be installed and configured
+- **Hermes**: Must be installed and configured
 - **Dependencies**: `trivia.mjs`, `state.mjs` (included)
 
 ## 🎮 Game Flow
@@ -121,5 +121,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Built for [OpenClaw](https://openclaw.ai)
+- Built for [Hermes](https://hermes-agent.nousresearch.com)
 - Questions curated for educational and entertainment purposes

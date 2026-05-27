@@ -1,19 +1,19 @@
 # Model Hub Manager
 
-> 中转站模型管理器 - One-click management for OpenClaw providers and models
+> 中转站模型管理器 - One-click management for Hermes providers and models
 
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-Skill-blue)](https://openclaw.ai)
+[![Hermes](https://img.shields.io/badge/Hermes-Skill-blue)](https://hermes-agent.nousresearch.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🤖 Overview
 
-Model Hub Manager is an OpenClaw skill for managing AI **providers** and **models**. It simplifies the process of adding new providers, adding models with aliases, removing entries, and viewing all configurations.
+Model Hub Manager is an Hermes skill for managing AI **providers** and **models**. It simplifies the process of adding new providers, adding models with aliases, removing entries, and viewing all configurations.
 
 ### Key Features
 
 - **Provider Management**: Add/remove/list AI service providers
 - **Model Management**: Add/remove/list models with convenient aliases
-- **Configuration Sync**: Auto-sync with OpenClaw config
+- **Configuration Sync**: Auto-sync with Hermes config
 - **User-Friendly**: Chinese CLI interface with helpful examples
 
 ## 🚀 Quick Start
@@ -47,8 +47,8 @@ node scripts/add-model.mjs model list
 ## 📋 Requirements
 
 - **Node.js**: Runtime environment
-- **OpenClaw**: Must be installed at `~/.openclaw/`
-- **Write Access**: To `~/.openclaw/openclaw.json`
+- **Hermes**: Must be installed at `~/.hermes/`
+- **Write Access**: To `~/.hermes/config.yaml`
 
 ## 📚 Command Reference
 
@@ -81,11 +81,11 @@ node scripts/add-model.mjs model add aimax claude-3-opus-20240229 opus
 node scripts/add-model.mjs provider list
 node scripts/add-model.mjs model list
 
-# Step 4: Restart OpenClaw
-openclaw gateway restart
+# Step 4: Restart Hermes
+hermes gateway restart
 
 # Step 5: Use the model
-openclaw models | grep opus
+hermes models | grep opus
 ```
 
 ## 🌍 Common Providers
@@ -99,7 +99,7 @@ openclaw models | grep opus
 
 ## ⚙️ Configuration
 
-All changes are saved to `~/.openclaw/openclaw.json`:
+All changes are saved to `~/.hermes/config.yaml`:
 
 ```json
 {

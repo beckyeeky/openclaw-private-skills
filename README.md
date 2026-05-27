@@ -1,8 +1,8 @@
-# OpenClaw Private Skills
+# Hermes Private Skills
 
-> A collection of custom OpenClaw skills for enhanced AI workflows
+> A collection of custom Hermes skills for enhanced AI workflows
 
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-Ready-blue)](https://openclaw.ai)
+[![Hermes](https://img.shields.io/badge/Hermes-Ready-blue)](https://hermes-agent.nousresearch.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 📦 Included Skills
@@ -19,7 +19,7 @@ Multi-model ensemble analysis with blind review mechanism
 ---
 
 ### 2. 🤖 Model Hub Manager
-One-click management for OpenClaw providers and models
+One-click management for Hermes providers and models
 
 - **Features**: Add/remove providers, manage model aliases
 - **Use Case**: Quickly configure new AI providers and models
@@ -44,17 +44,17 @@ Each skill has its own README with detailed installation and usage instructions.
 
 ```bash
 # Clone the repository
-git clone https://github.com/beckyeeky/openclaw-private-skills.git
+git clone https://github.com/beckyeeky/hermes-private-skills.git
 
 # Navigate to a skill
-cd openclaw-private-skills/ensemble-jury
+cd hermes-private-skills/ensemble-jury
 
 # Follow the skill's README for setup
 ```
 
 ## 📋 Requirements
 
-- [OpenClaw](https://openclaw.ai) installed and configured
+- [Hermes](https://hermes-agent.nousresearch.com) installed and configured
 - Node.js runtime environment
 - Git (for cloning)
 
@@ -70,5 +70,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- Built for [OpenClaw](https://openclaw.ai)
-- Inspired by the OpenClaw community
+- Built for [Hermes](https://hermes-agent.nousresearch.com)
+- Inspired by the Hermes community

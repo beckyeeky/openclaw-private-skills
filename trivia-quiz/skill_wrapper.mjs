@@ -2,9 +2,6 @@
 /**
  * 技能调用包装器
  * 当 AI 检测到技能触发词时，调用此脚本
- * 
- * 使用方法:
- *   node skill_wrapper.mjs trivia-quiz start
  */
 
 import { execSync } from 'child_process';
@@ -27,14 +24,9 @@ try {
     { encoding: 'utf-8', cwd: __dirname }
   ).trim();
   
-  const data = JSON.parse(output);
-  
-  // 输出给 AI 的格式
-  console.log(JSON.stringify({
-    skill: 'trivia-quiz',
-    action: 'send_message',
-    data: data
-  }));
+  // 直接输出原始 JSON，不做任何包装
+  // Hermes skill 执行器会直接解析并提取 text/buttons 字段发送 Telegram
+  console.log(output);
   
 } catch (error) {
   console.log(JSON.stringify({

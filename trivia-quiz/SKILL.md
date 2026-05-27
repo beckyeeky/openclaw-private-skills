@@ -14,69 +14,88 @@ metadata: {"clawdbot":{"emoji":"🎯","requires":{"bins":["node"]},"command":"no
 
 1.  **NEVER** generate quiz questions yourself.
 2.  **NEVER** answer in English unless the tool output is in English.
-3.  **ALWAYS** call the provided tool script (`skill_wrapper.mjs`) to get content.
-4.  **STRICTLY** output the JSON content provided by the tool using the `message` tool. Do not add conversational filler.
-
-## Usage
-
-### 1. Start Game
-**Trigger**: User says "冷门知识", "trivia", "quiz"
-**Action**:
-```bash
-node skill_wrapper.mjs trivia-quiz start
-```
-
-### 2. Handle Answer (Callback)
-**Trigger**: Callback data `trivia_q{id}_{0-3}`
-**Action**:
-```bash
-# Example: User clicked answer index 2 for question 10
-node scripts/entry_final.mjs answer 10 2
-```
-
-### 3. Continue Game (Callback)
-**Trigger**: Callback data matching regex `^trivia_continue_(\d+)$`
-**Action**:
-1. Extract the ID from the callback (e.g., `trivia_continue_10` -> `10`).
-2. Run the command:
-```bash
-node scripts/entry_final.mjs continue 10
-```
-(Replace `10` with the actual ID extracted)
+3.  **ALWAYS** call the provided tool script to get content.
+4.  **DO NOT** just output the raw JSON text. Parse it and send a properly formatted reply with inline buttons.
 
 ## Workflow
 
-1.  **User**: "冷门知识"
-2.  **AI**: Calls `node skill_wrapper.mjs trivia-quiz start`
-3.  **Tool**: Returns JSON `{ "skill": "trivia-quiz", "action": "send_message", "data": { ... } }`
-4.  **AI**: Calls `message` tool with `message` and `buttons` from `data`, preserving the exact line breaks and using Telegram inline buttons for `1️⃣ 2️⃣ 3️⃣ 4️⃣`.
+### 1. Start Game
+**Trigger**: User says "冷门知识", "trivia", "quiz"
+
+**Action**: Run the skill script and parse its JSON output:
+```bash
+cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs start
+```
+
+**AI Response**: Parse the returned JSON. Extract `message` and `buttons`. Send the `message` text together with the `buttons` as Telegram inline buttons. Do NOT add any greeting, commentary, or surrounding text.
+
+### 2. Handle Answer (Callback)
+**Trigger**: User clicks a callback button matching `trivia_q{id}_{0-3}`
+
+**Action**: Extract `id` and `index` from the callback data. Example: `trivia_q21_0` → id=`21`, index=`0`:
+```bash
+cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs answer 21 0
+```
+
+**AI Response**: Parse the JSON output. Extract `message` and `buttons`. Send the message text together with the buttons as Telegram inline buttons. No extra text.
+
+### 3. Continue Game (Callback)
+**Trigger**: User clicks `trivia_continue_{id}`
+
+**Action**:
+```bash
+cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs continue {id}
+```
+
+**AI Response**: Parse JSON, send message + inline buttons. No extra text.
+
+### 4. View Article (Callback)
+**Trigger**: User clicks `trivia_article_{id}`
+
+**Action**:
+```bash
+cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs article {id}
+```
+
+**AI Response**: Parse JSON, send message + inline buttons. No extra text.
+
+### 5. End Game (Callback)
+**Trigger**: User clicks `trivia_end`
+
+**Action**:
+```bash
+cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs end
+```
+
+**AI Response**: Parse JSON, send message + inline buttons. No extra text.
+
+### 6. Restart (Callback)
+**Trigger**: User clicks `trivia_restart`
+
+**Action**: Treat as a new game → run `start` command above.
+
+## Inline Button Formatting Rules
+
+When the script returns `buttons` array like:
+```json
+{
+  "buttons": [
+    [{"text": "1️⃣", "callback_data": "trivia:q21:0"}, {"text": "2️⃣", "callback_data": "trivia:q21:1"}],
+    [{"text": "3️⃣", "callback_data": "trivia:q21:2"}, {"text": "4️⃣", "callback_data": "trivia:q21:3"}]
+  ]
+}
+```
+
+Send each inner array as a **row** of Telegram inline buttons. Preserve the button labels and callback_data exactly as provided.
 
 ## Troubleshooting
 
-- **If tool fails**: Report error to user, do NOT invent a question.
-- **If user inputs text (1-4)**: Politely ask them to click the buttons.
-- **If callback is 'trivia_continue_undefined'**: The state might be lost. Ask user to start a new game with "冷门知识".
-
+- **If tool/script fails**: Report error to user, do NOT invent a question.
+- **If user inputs text instead of clicking**: Politely ask them to click the buttons.
+- **If callback is 'trivia_continue_undefined' or similar**: State lost. Ask user to start a new game with "冷门知识".
 
 ## Output Contract
 
-- Always render the question text exactly in this structure, without adding greetings or commentary:
+Send ONLY the content from the script JSON. No greetings. No closing remarks. No conversational filler. The message from the script IS the reply.
 
-```text
-🎯 {分类}类
-
-{题目}
-
-1️⃣ {选项1}
-2️⃣ {选项2}
-3️⃣ {选项3}
-4️⃣ {选项4}
-```
-
-- Always send Telegram inline buttons together with the question message.
-- Always expose exactly four answer buttons with labels `1️⃣`, `2️⃣`, `3️⃣`, `4️⃣`.
-- Always map button callback data to the numeric answer index format `trivia_q{id}_{0-3}` so the runtime can route to `answer <id> <index>` deterministically.
-- If the host cannot render inline buttons, tell the user the environment does not support them instead of pretending they were sent.
-
-- Reject stale or out-of-session callback payloads instead of answering arbitrary question IDs.
-- Treat `trivia_continue_*` as valid only when the referenced question is still pending in the active session.
+If the channel does not support inline buttons, tell the user the environment lacks inline button support — do not silently drop the buttons.

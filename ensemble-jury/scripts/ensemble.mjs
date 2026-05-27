@@ -14,7 +14,7 @@ import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE || '/root/.openclaw/workspace';
+const WORKSPACE = process.env.HERMES_WORKSPACE || '/root/.hermes/workspace';
 
 // 日志目录
 const LOG_DIR = path.join(WORKSPACE, '.logs');
@@ -192,7 +192,7 @@ async function blindReview(query, intelligence) {
   const reviews = await Promise.all(reviewers.map(async (reviewer) => {
     return new Promise((resolve) => {
       const startTime = Date.now();
-      const p = spawn('openclaw', [
+      const p = spawn('hermes', [
         'agent',
         '--agent', reviewer.agent,
         '-m', fullPrompt
@@ -274,7 +274,7 @@ ${anonymizedReviews}
 请以清晰的结构输出最终答案。`;
 
   return new Promise((resolve) => {
-    const p = spawn('openclaw', [
+    const p = spawn('hermes', [
       'agent',
       '--agent', 'claude',
       '-m', synthesisPrompt
