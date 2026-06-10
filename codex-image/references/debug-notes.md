@@ -34,7 +34,7 @@ load_dotenv(Path.home() / ".hermes" / ".env")
 token = os.environ["TELEGRAM_BOT_TOKEN"]
 ```
 
-Or parse `~/.hermes/config.yaml`.
+Or parse `~/.openclaw/openclaw.json`.
 
 ## Skill Path
 `/root/.hermes/skills/image-generation/codex-image/`
@@ -72,18 +72,18 @@ Error `unknown variant 'image_url', expected 'text'` — model doesn't support i
 
 ### Major changes
 - **`if __name__ == "__main__"` guard added** - import generate.py safely now, no side effects
-- **argparse CLI** - `prompt` positional + `--reference`, `--mime`, `--output`, `--hermes`, `--verbose`
+- **argparse CLI** - `prompt` positional + `--reference`, `--mime`, `--output`, `--openclaw`, `--verbose`
 - **Reference images via CLI** - `--reference /path/to/image` works directly
 - **GET polling removed** - always returned 403. Now uses robust `readline()` SSE parsing with extended timeout
 - **Auto-fallback** - if no image returned, tries simpler prompt, then drops reference
 - **Unique filenames** - timestamp-based `codex_20260503_123045.png` instead of fixed `codex_image.png`
-- **No `--deliver` flag** — removed in v1.9 CLI rewrite. Agent copies to hermes workspace manually. The `--hermes` flag exists but is deprecated; prefer manual cp + hermes send.
+- **No `--deliver` flag** — removed in v1.9 CLI rewrite. Agent copies to openclaw workspace manually. The `--openclaw` flag exists but is deprecated; prefer manual cp + openclaw send.
 
 ### Usage from Hermes (current, 2026-05)
 ```bash
-cp /tmp/codex_*.png /root/.hermes/workspace/ && \
-hermes message send --channel telegram --target -1002607789776 --thread-id 55 \
-  --media /root/.hermes/workspace/codex_*.png --message "✨ caption"
+cp /tmp/codex_*.png /root/.openclaw/workspace/ && \
+openclaw message send --channel telegram --target -1002607789776 --thread-id 55 \
+  --media /root/.openclaw/workspace/codex_*.png --message "✨ caption"
 ```
 
 ### 2026-05-24: Token auto-refresh via Codex CLI (v1.9.3)

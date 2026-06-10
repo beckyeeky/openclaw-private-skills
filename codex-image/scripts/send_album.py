@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram 媒体组发送脚本
-使用 Hermes 的 Telegram Bot 配置
+使用 OpenClaw 的 Telegram Bot 配置
 """
 
 import sys

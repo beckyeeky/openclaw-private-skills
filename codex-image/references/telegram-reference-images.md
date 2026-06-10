@@ -80,7 +80,7 @@ See the session transcript for a complete example at `/tmp/couple_gen.py` that:
 1. Finds the latest cached photo
 2. Reads it as base64
 3. Sends to Codex with a couple-photo prompt
-4. Delivers via hermes
+4. Delivers via openclaw
 
 ```python
 # Minimal self-contained version
@@ -105,5 +105,5 @@ req = urllib.request.Request(
     data=json.dumps(payload).encode(), headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method="POST"
 )
 response = urllib.request.urlopen(req, timeout=120)
-# ... parse SSE stream for partial_image_b64, save, send via hermes
+# ... parse SSE stream for partial_image_b64, save, send via openclaw
 ```
