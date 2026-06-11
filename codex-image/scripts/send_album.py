@@ -1,99 +1,105 @@
 #!/usr/bin/env python3
 """
-Telegram 媒体组发送脚本
-使用 OpenClaw 的 Telegram Bot 配置
+Send multiple photos as a Telegram media group (album).
+
+Requires TELEGRAM_BOT_TOKEN env var and --chat-id / CHAT_ID env var.
+No hardcoded credentials.
+
+Usage:
+    TELEGRAM_BOT_TOKEN="xxx" python3 send_album.py --chat-id "-10012345" pic1.png pic2.png "Album caption"
+    python3 send_album.py --chat-id "-10012345" --thread-id 55 pic1.png pic2.png
 """
 
 import sys
-import requests
 import os
 import json
+import argparse
+import requests
 
-BOT_TOKEN = "8459669153:AAEUE_X-LH__vXA90DcDKNcq_rRsBNhIRcE"
-CHAT_ID = "44095775"
 
-def send_media_group(image_paths, caption=None):
-    """发送媒体组（最多10张图片）"""
-    
+def send_media_group(bot_token, chat_id, image_paths, caption=None, thread_id=None):
+    """Send a media group (up to 10 images). No shell injection — uses params, not string building."""
     if len(image_paths) > 10:
-        print("Error: Maximum 10 images allowed")
+        print("Error: Maximum 10 images allowed", file=sys.stderr)
         return False
-    
+
     if len(image_paths) < 2:
-        print("Error: Media group requires at least 2 images")
+        print("Error: Media group requires at least 2 images", file=sys.stderr)
         return False
-    
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup"
-    
-    # 构建 media 数组
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMediaGroup"
+
     media = []
     files = {}
-    
+
     for i, img_path in enumerate(image_paths):
         if not os.path.exists(img_path):
-            print(f"Warning: File not found: {img_path}")
+            print(f"Warning: File not found: {img_path}", file=sys.stderr)
             continue
-        
+
         field_name = f"photo_{i}"
         item = {
             "type": "photo",
-            "media": f"attach://{field_name}"
+            "media": f"attach://{field_name}",
         }
-        # 只在第一张图添加 caption
+        # Caption only on first photo
         if i == 0 and caption:
             item["caption"] = caption
-            item["parse_mode"] = "HTML"
-        
+
         media.append(item)
-        
         files[field_name] = open(img_path, 'rb')
-    
+
     if len(media) < 2:
-        print("Error: Need at least 2 valid images")
+        print("Error: Need at least 2 valid images", file=sys.stderr)
         return False
-    
-    # media 参数需要是 JSON 字符串
+
     data = {
-        "chat_id": CHAT_ID,
-        "media": json.dumps(media)
+        "chat_id": chat_id,
+        "media": json.dumps(media),
     }
-    
+    if thread_id:
+        data["message_thread_id"] = thread_id
+
     try:
-        print(f"Sending {len(media)} photos as album...")
-        response = requests.post(url, data=data, files=files)
-        
+        response = requests.post(url, data=data, files=files, timeout=30)
         result = response.json()
         if result.get("ok"):
-            print("✅ Album sent successfully!")
+            print("Album sent successfully", file=sys.stderr)
             return True
         else:
-            print(f"❌ Error: {result.get('description', 'Unknown error')}")
+            print(f"Error: {result.get('description', 'Unknown')}", file=sys.stderr)
             return False
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
         return False
     finally:
         for f in files.values():
             f.close()
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 send_album.py <image1> [image2] ... ['caption']")
-        print("Example: python3 send_album.py ./pic1.png ./pic2.png 'My photos'")
-        print("Note: Put caption in quotes if it has spaces")
+
+def main():
+    parser = argparse.ArgumentParser(description="Send Telegram photo album")
+    parser.add_argument("images", nargs="+", help="Image file paths")
+    parser.add_argument("--chat-id", "-c", help="Chat ID (overrides CHAT_ID env)")
+    parser.add_argument("--thread-id", "-t", type=int, help="Thread/topic ID")
+    parser.add_argument("--caption", "-m", nargs="*", help="Caption text")
+
+    args = parser.parse_args()
+
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        print("Error: TELEGRAM_BOT_TOKEN env var not set", file=sys.stderr)
         sys.exit(1)
-    
-    args = sys.argv[1:]
-    caption = None
-    
-    # 判断最后一个参数是否是 caption（不含路径分隔符且不以图片扩展名结尾）
-    last_arg = args[-1]
-    valid_exts = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
-    
-    if not last_arg.lower().endswith(valid_exts) and '/' not in last_arg and len(args) > 1:
-        caption = last_arg
-        image_paths = args[:-1]
-    else:
-        image_paths = args
-    
-    send_media_group(image_paths, caption)
+
+    chat_id = args.chat_id or os.environ.get("CHAT_ID")
+    if not chat_id:
+        print("Error: No chat_id. Set --chat-id or CHAT_ID env var", file=sys.stderr)
+        sys.exit(1)
+
+    caption = " ".join(args.caption) if args.caption else None
+
+    send_media_group(bot_token, chat_id, args.images, caption, args.thread_id)
+
+
+if __name__ == "__main__":
+    main()

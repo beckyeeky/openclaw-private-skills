@@ -1,0 +1,5 @@
+# Local config with Telegram bot token, chat IDs, etc.
+config.yaml
+config.yml
+.env
+*.local.yaml
