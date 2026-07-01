@@ -7,29 +7,7 @@
 
 ## 📦 Included Skills
 
-### 1. ⚖️ Ensemble Jury
-Multi-model ensemble analysis with blind review mechanism
-
-- **Features**: 4-model blind review (Kimi, Gemini, DeepSeek, GPT-5.2) + Claude arbitration
-- **Use Case**: Complex analysis requiring multiple perspectives
-- **Location**: [`ensemble-jury/`](ensemble-jury/)
-
-[→ Read Documentation](ensemble-jury/README.md)
-
----
-
-### 2. 🤖 Model Hub Manager
-One-click management for Hermes providers and models
-
-- **Features**: Add/remove providers, manage model aliases
-- **Use Case**: Quickly configure new AI providers and models
-- **Location**: [`model-hub-manager/`](model-hub-manager/)
-
-[→ Read Documentation](model-hub-manager/README.md)
-
----
-
-### 3. 🎯 Trivia Quiz
+### 1. 🎯 Trivia Quiz
 Fun trivia game with inline buttons and detailed explanations
 
 - **Features**: Interactive quiz game with educational content
@@ -37,6 +15,37 @@ Fun trivia game with inline buttons and detailed explanations
 - **Location**: [`trivia-quiz/`](trivia-quiz/)
 
 [→ Read Documentation](trivia-quiz/README.md)
+
+---
+
+### 2. 🖼️ Codex Image Generation
+Image generation via Codex (gpt-5.4)
+
+- **Features**: Text-to-image with bypass pipeline, reference images, Telegram delivery
+- **Use Case**: Generate images from text prompts
+- **Location**: [`codex-image/`](codex-image/)
+
+[→ Read Documentation](codex-image/README.md)
+
+---
+
+### 3. 📖 Pixiv Novel Extractor
+Download and format Pixiv novels
+
+- **Features**: Download novels, format as markdown, output via Telegram
+- **Use Case**: Save Pixiv novel content locally
+- **Location**: [`pixiv-novel-extractor/`](pixiv-novel-extractor/)
+
+---
+
+### 4. 📰 WeChat Article Fetch
+Fetch any web article via curl+defuddle → Markdown → optional Telegra.ph publishing
+
+- **Features**: WeChat/MicroMessenger UA bypass, Telegraph publishing, JS-rendered page fallback
+- **Use Case**: Archive articles with mobile-friendly reading links
+- **Location**: [`wechat-article-fetch/`](wechat-article-fetch/)
+
+[→ Read Documentation](wechat-article-fetch/README.md)
 
 ## 🚀 Quick Start
 
