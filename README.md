@@ -30,10 +30,10 @@ Image generation via Codex (gpt-5.4)
 ---
 
 ### 3. 📖 Pixiv Novel Extractor
-Download and format Pixiv novels
+Download and format Pixiv novels (all-ages public AJAX + R-18 App webview)
 
-- **Features**: Download novels, format as markdown, output via Telegram
-- **Use Case**: Save Pixiv novel content locally
+- **Features**: Public novel extract → MD/JSON; R-18 fallback via App `refresh_token` + webview; recommended novels
+- **Use Case**: Save / summarize Pixiv novel full text (including login-gated R-18)
 - **Location**: [`pixiv-novel-extractor/`](pixiv-novel-extractor/)
 
 ---

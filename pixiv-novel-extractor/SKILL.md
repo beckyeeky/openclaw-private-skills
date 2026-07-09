@@ -1,14 +1,14 @@
 ---
 name: pixiv-novel-extractor
 description: >
-  Extract full text from public Pixiv novels from a Pixiv novel URL, share text, or bare novel ID, and export the result to Markdown or JSON. Use when the user wants to 保存 Pixiv 小说全文, parse a Pixiv novel link, fetch a public Pixiv novel by URL/ID, manage a Pixiv App refresh token once and reuse it later, or read Pixiv recommended novels through the Pixiv App API.
+  Extract full text from Pixiv novels (all-ages public AJAX, or R-18 via App webview + refresh_token) from a URL/share text/bare ID, export Markdown or JSON. Use when the user wants to 保存/总结 Pixiv 小说全文, parse a novel link, manage a Pixiv App refresh token, or fetch App recommendations. R-18 empty-body → scripts/extract-r18-webview.mjs.
 metadata: {"openclaw":{"emoji":"📚","privacy":"Public novel URLs and optional Pixiv refresh tokens are sent to Pixiv endpoints for extraction and recommendation lookups. Tokens are stored locally in ~/.pixiv-novel-extractor/config.json only after successful verification.","requires":{"bins":["node"]},"optional":{"env":["PIXIV_REFRESH_TOKEN"],"config":["~/.pixiv-novel-extractor/config.json"]}}}
 allowed-tools: Bash(node:*)
 ---
 
 # Pixiv Novel Extraction with `node`
 
-Extract public Pixiv novel text into Markdown files, keep embedded image positions, and optionally save a Pixiv App `refresh_token` for recommendation lookups.
+Extract Pixiv novel text into Markdown files, keep embedded image positions, and optionally save a Pixiv App `refresh_token` for recommendations and **R-18 / login-gated** full text.
 
 ## Quick Start
 
@@ -17,6 +17,8 @@ node scripts/pixiv-novel.mjs extract "https://www.pixiv.net/novel/show.php?id=28
 node scripts/pixiv-novel.mjs extract "28063332" --format both
 node scripts/pixiv-novel.mjs auth
 node scripts/pixiv-novel.mjs recommended
+# R-18 / empty body fallback (needs saved refresh_token):
+node scripts/extract-r18-webview.mjs "23924083" -o /tmp/Pixiv-Novel-Skill
 ```
 
 Default extract output directory:
@@ -37,9 +39,9 @@ or
 
 ## Commands
 
-### Extract a public novel
+### Extract a novel (all-ages public first)
 
-No login is required for public novel extraction.
+All-ages public novels need no login:
 
 ```bash
 node scripts/pixiv-novel.mjs extract "<url-or-id>"
@@ -54,6 +56,21 @@ Supported input forms:
 - standard Pixiv URL
 - URL-encoded Pixiv URL
 - share text that contains a Pixiv novel URL
+
+### R-18 / empty-content fallback (auth required)
+
+If `extract` succeeds but **metadata only** (`content` empty / `content_len 0`), the novel is almost always **R-18** (`xRestrict: 1`). Public AJAX strips body without a logged-in session.
+
+**Do not stop.** Use saved App token + webview:
+
+```bash
+# requires prior: node scripts/pixiv-novel.mjs auth  (or PIXIV_REFRESH_TOKEN)
+node scripts/extract-r18-webview.mjs "<url-or-id>" --format both -o /tmp/Pixiv-Novel-Skill
+```
+
+Token resolution matches `recommended`: `--token-stdin` → `PIXIV_REFRESH_TOKEN` → `~/.pixiv-novel-extractor/config.json`.
+
+Details: [references/pixiv-endpoints.md](references/pixiv-endpoints.md), script `scripts/extract-r18-webview.mjs`.
 
 ### Save a refresh token once
 
@@ -97,12 +114,38 @@ echo "PIXIV_REFRESH_TOKEN" | node scripts/pixiv-novel.mjs recommended --token-st
 - Relative `-o` paths are rooted at the workspace or system temp directory, not inside the skill folder.
 - Extracted novel files are named from the novel title, for example `测试小说.md`; when a file name already exists in the target folder, the skill appends `-2`, `-3`, and so on instead of overwriting.
 - Embedded novel images stay in-place as Markdown image placeholders with a preferred public proxy URL and fallback links.
-- Public extraction does not support private or permission-restricted novels in v1.
+- All-ages public `extract` does not return R-18 body text; use `extract-r18-webview.mjs` when content is empty.
+- Truly private / mypixiv-only / deleted novels remain unsupported.
+
+## Pitfalls
+
+- **R-18 empty body is not failure of the novel ID.** `ajax/novel/{id}` returns title/tags/`xRestrict:1` but `content: null` without session. Always fall back to webview path.
+- **`/v1/novel/text` is dead (404).** Do not use it. App metadata `v2/novel/detail` also has **no text field** — only webview carries full text.
+- **Webview HTML is not JSON.** Parse `window.pixiv` → `value.novel.text` (see script). Plain `web_extract` / browser login wall will not get R-18 body.
+- Token already saved under `~/.pixiv-novel-extractor/config.json` on this host — reuse; do not re-ask unless `auth --verify` fails.
 
 ## Agent Rules
 
-- Prefer `extract` first when the user only wants the full text of a public Pixiv novel.
-- Use `auth` only when the user explicitly wants saved token management or recommendation access.
+- Prefer `extract` first for any novel URL/ID.
+- If output MD/JSON has empty `## Content` / empty `content`, immediately run `scripts/extract-r18-webview.mjs` with the same ID (reuse saved token). Do not tell the user the novel is unreadable until webview also fails.
+- Use `auth` when token missing/invalid, for recommendations, or when user asks to save/verify a `refresh_token`.
 - Do not ask the user to paste the token repeatedly once `auth` succeeds; reuse the saved config.
-- Do not claim private, restricted, or login-only Pixiv novels are supported.
-- Keep `SKILL.md` lean and consult [references/pixiv-endpoints.md](references/pixiv-endpoints.md) only when API behavior or token flow matters.
+- Do not claim R-18 is impossible if a refresh_token is available.
+- Keep `SKILL.md` lean and consult [references/pixiv-endpoints.md](references/pixiv-endpoints.md) when API behavior or token flow matters.
+
+## Summarize for the user (玩法 / 内容)
+
+When the user asks to 总结玩法/内容 (not just 保存全文), after a successful extract:
+
+1. Read full cleaned text (R-18 path if needed). Pull sequel IDs from caption (`novel/########` or pixiv novel links).
+2. Reply in **concise Chinese** (Beck: 简练直接). Prefer this skeleton over long prose:
+
+| Section | What to put |
+|---|---|
+| **基本信息** | title, author, ID+link, tags, length/pages, prequel/sequel links |
+| **玩法** | genre mechanics / fetish rules (e.g. 人格排泄步骤、触发条件、旁观结构) — not game UI |
+| **内容梗概** | numbered beat sheet, spoiler-ok unless asked otherwise |
+| **一句话** | single-line hook |
+
+3. For multi-part works: one table **对照前/后篇** if both exist; offer sequel summary only if user did not already ask for it.
+4. Do not dump raw novel text into chat unless they asked to 保存/导出全文.
