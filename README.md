@@ -47,6 +47,16 @@ Fetch any web article via curl+defuddle → Markdown → optional Telegra.ph pub
 
 [→ Read Documentation](wechat-article-fetch/README.md)
 
+
+---
+
+### 5. 🧩 Loon Plugin Engineering
+Build/debug/publish Loon `.plugin` files (MitM, Script, Argument, raw hosting pitfalls)
+
+- **Features**: templates for reject / request+response, raw 404 matrix, 可莉 & deezertidal reference map
+- **Use Case**: Loon 插件开发、TabulaBili 类维护、远程 script-path 发布
+- **Location**: [`loon-plugin/`](loon-plugin/)
+
 ## 🚀 Quick Start
 
 Each skill has its own README with detailed installation and usage instructions.

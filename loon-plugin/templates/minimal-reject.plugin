@@ -1,0 +1,17 @@
+#!name = Example Reject
+#!desc = 最小 reject 示例：拦截示例广告路径（请改成真实域名/路径）
+#!author = you
+#!homepage = https://github.com/USER/REPO
+#!icon = https://www.example.com/favicon.ico
+#!tag = example,ads
+#!system = iOS,iPadOS,macOS
+#!loon_version = 3.2.1(733)
+
+# 纯 URL Rewrite 拒绝；不需要 JS。
+# 目标 host 必须出现在 [MitM]。
+
+[URL Rewrite]
+^https?:\/\/api\.example\.com\/(?:ad|ads|splash)\/ - reject
+
+[MitM]
+hostname = api.example.com

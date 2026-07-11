@@ -1,0 +1,29 @@
+#!name = Example Request+Response
+#!desc = 请求清洗 + 被动响应探针骨架。把 example.com 换成真实 API；script-path 换成你的 raw。
+#!author = you
+#!homepage = https://github.com/USER/REPO
+#!icon = https://www.example.com/favicon.ico
+#!openUrl = https://github.com/USER/REPO
+#!tag = example
+#!system = iOS,iPadOS,macOS
+#!loon_version = 3.2.1(733)
+#!date = 2026-07-11
+
+# mode:
+#   scrub  — 清洗 Cookie（示例）
+#   origin — 关闭清洗
+# notify: 响应异常时通知（需自行实现节流）
+
+[Argument]
+mode = select,"scrub","origin",tag=模式,desc=scrub=清洗 | origin=关闭
+notify = switch,true,tag=异常通知,desc=响应业务异常时通知
+
+[Script]
+# 请求侧（不读 body）
+http-request ^https:\/\/api\.example\.com\/v1\/feed script-path = https://raw.githubusercontent.com/USER/REPO/main/scripts/example-request.js, requires-body = false, timeout = 10, tag = Example Request, argument = [{mode}]
+
+# 响应侧观测（不改 body 时脚本内 $done({})）
+http-response ^https:\/\/api\.example\.com\/v1\/feed script-path = https://raw.githubusercontent.com/USER/REPO/main/scripts/example-response.js, requires-body = true, timeout = 10, tag = Example Observe, argument = [{notify}]
+
+[MitM]
+hostname = api.example.com
