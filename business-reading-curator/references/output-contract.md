@@ -84,6 +84,17 @@ Use brief quotations only. Never reconstruct the article through accumulated exc
 
 ## Delivery
 
-The Markdown file in the runtime `packs/` directory is canonical. Send its complete contents
-in chat; split into multiple messages if required by the transport. Do not publish it to a
-third-party service automatically.
+Separate durable output from chat delivery:
+
+- The Markdown file in the runtime `packs/` directory is the canonical archive.
+- Immutable snapshots live under `packs/.versions/` so the main directory shows only the
+  current canonical pack.
+- The default Telegram/chat response is only the CLI's `chat_message`, no more than 1,000
+  characters.
+- The compact message contains the title, industry, companies, a spoiler-free Chinese
+  direction, reading length, source position and scores, and the original link.
+- Never automatically attach, quote, or split the complete Markdown.
+- Return vocabulary, questions, source assessment, or the complete guide only after an
+  explicit issue-specific request.
+- Do not expose a local file path as a user-facing link.
+- Do not publish the pack to a third-party service automatically.

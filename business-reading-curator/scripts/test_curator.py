@@ -164,6 +164,7 @@ def pack_input(candidate_id: int) -> dict:
     return {
         "candidate_id": candidate_id,
         "run_date": "2026-07-26",
+        "direction_zh": "文章围绕一家生物技术公司的战略调整，关注经营约束、资源配置与利益相关者之间的权衡。",
         "why_selected": rationale,
         "human_origin_explanation": "具名记者、原始域名和作者页均已核验。",
         "advertising_risk_explanation": "未发现赞助、导流或供应商推销。",
@@ -318,6 +319,14 @@ class CuratorTests(unittest.TestCase):
         prepared = curator.command_prepare(
             self.conn, self.home, pack_input(result["candidate_id"]), body
         )
+        self.assertIn("chat_message", prepared)
+        self.assertLessEqual(len(prepared["chat_message"]), 1000)
+        self.assertIn("行业：", prepared["chat_message"])
+        self.assertIn("方向：", prepared["chat_message"])
+        self.assertIn("原文：https://", prepared["chat_message"])
+        self.assertNotIn("Vocabulary", prepared["chat_message"])
+        self.assertNotIn("Post-reading questions", prepared["chat_message"])
+        self.assertNotIn("/tmp/", prepared["chat_message"])
         pack_path = Path(prepared["path"])
         first = pack_path.read_text(encoding="utf-8")
         self.assertIn("**Original source:**", first)
@@ -337,7 +346,7 @@ class CuratorTests(unittest.TestCase):
         self.assertEqual(completed["version"], 3)
         final = Path(completed["path"]).read_text(encoding="utf-8")
         self.assertIn("Post-Reading Source Comparison", final)
-        self.assertTrue(pack_path.with_suffix(".prepare.md").exists())
+        self.assertFalse(pack_path.with_suffix(".prepare.md").exists())
         versions = self.conn.execute(
             "SELECT version,phase,path FROM pack_versions WHERE issue_id=? ORDER BY version",
             (prepared["issue_id"],),
@@ -347,6 +356,10 @@ class CuratorTests(unittest.TestCase):
             [(1, "prepare"), (2, "prepare"), (3, "complete")],
         )
         self.assertTrue(all(Path(row["path"]).exists() for row in versions))
+        self.assertTrue(
+            all(Path(row["path"]).parent.name == ".versions" for row in versions)
+        )
+        self.assertEqual(list(pack_path.parent.glob("*.md")), [pack_path])
         issue = self.conn.execute(
             "SELECT status FROM issues WHERE id=?", (prepared["issue_id"],)
         ).fetchone()
@@ -734,6 +747,11 @@ class CuratorTests(unittest.TestCase):
             curator.command_prepare(self.conn, self.home, data, validation_body)
         count = self.conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0]
         self.assertEqual(count, 0)
+
+        data = pack_input(result["candidate_id"])
+        data["direction_zh"] = "方向\n不应换行"
+        with self.assertRaisesRegex(curator.CuratorError, "direction_zh"):
+            curator.command_prepare(self.conn, self.home, data, validation_body)
 
     def test_prepare_requires_five_full_text_assessments(self) -> None:
         body = article_body("singlecandidate")

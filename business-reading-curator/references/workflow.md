@@ -163,6 +163,11 @@ a database transaction, marks the candidate selected, creates the issue, and mov
 into place. Delete the temporary body after the command returns. A failed validation must not
 consume an issue number or leave a selected row.
 
+Send only the returned `chat_message` to Telegram or another chat transport. It is a compact
+Chinese notice with the article direction, industry, company, reading time, source assessment,
+and original link. Do not read and relay the saved Markdown unless the user explicitly asks
+for a section or the complete guide.
+
 ## 7. Completion
 
 `prepare` deliberately omits source comparison and conclusions. On completion:

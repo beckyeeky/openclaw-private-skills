@@ -1,6 +1,6 @@
 ---
 name: business-reading-curator
-description: Curate recurring, source-verified English long-form business reading packs from identifiable human authors, transcripts, filings, regulatory documents, and established editorial publications. Use when asked to find an English business article, create a pharma/biotech/CDMO/API/healthcare or cross-industry reading issue, preview candidates, inspect reading history or cooldowns, mark an issue complete, or compare its primary and corroborating sources.
+description: Curate recurring, source-verified English long-form business reading packs from identifiable human authors, transcripts, filings, regulatory documents, and established editorial publications. Use when asked to find an English business article, create a pharma/biotech/CDMO/API/healthcare or cross-industry reading issue, preview candidates, inspect reading history or cooldowns, show vocabulary or questions for an issue, mark an issue complete, or compare its primary and corroborating sources.
 ---
 
 # Business Reading Curator
@@ -42,11 +42,23 @@ Read these references as directed:
 5. Run `shortlist`; in automatic mode choose the highest-ranked eligible candidate.
 6. Refetch the selected source body, build the spoiler-free guidance JSON, and call `prepare`
    with the temporary body so the CLI can verify every vocabulary expression.
-7. Return the complete Markdown pack content or split it without omitting sections if the
-   chat transport has a length limit.
+7. Send only the `chat_message` returned by `prepare`. Do not open, attach, quote, or split
+   the complete Markdown pack in chat unless the user explicitly asks for `完整导读 <issue-id>`.
 
 Do not publish an issue when fewer than five candidates received a real full-text assessment.
 Record rejected and deferred candidates anyway.
+
+### Show saved guidance on demand
+
+Treat the saved Markdown as an archive, not the default chat response:
+
+- `词汇 <issue-id>`: return only the Vocabulary table.
+- `问题 <issue-id>`: return pre-reading questions, checkpoints, and post-reading questions.
+- `来源评估 <issue-id>`: return only provenance, advertising risk, and novelty sections.
+- `完整导读 <issue-id>`: return the full pack; split only because the user explicitly asked.
+
+Resolve the pack path through `history`. Never expose a local filesystem path as if a
+Telegram user could open it.
 
 ### Preview candidates
 
@@ -70,7 +82,7 @@ update, but it cannot bypass provenance, access, duplicate, or advertising hard 
 Use `revise` with the same prepare contract plus `issue_id` and a freshly retrieved temporary
 body. It creates a new immutable version snapshot, updates the canonical Markdown, and does
 not create another selected record or consume another issue number. Do not revise a completed
-issue back into a spoiler-free state.
+issue back into a spoiler-free state. Send only the revised `chat_message`.
 
 ### Complete a reading
 

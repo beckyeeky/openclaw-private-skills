@@ -1372,6 +1372,9 @@ def vocabulary_contexts(data: dict[str, Any], body: str) -> list[tuple[str, str]
 def validate_pack_input(
     candidate: sqlite3.Row, data: dict[str, Any], body: str | None
 ) -> list[tuple[str, str]]:
+    direction_zh = require_string(data, "direction_zh")
+    if "\n" in direction_zh or len(direction_zh) > 180:
+        raise CuratorError("direction_zh must be one line and no more than 180 characters")
     why = require_string(data, "why_selected")
     why_words = count_words(why)
     if not 80 <= why_words <= 120:
@@ -1445,7 +1448,51 @@ def slugify(value: str) -> str:
 
 
 def version_path(path: Path, version: int, phase: str) -> Path:
-    return path.with_name(f"{path.stem}.v{version}.{phase}{path.suffix}")
+    versions = path.parent / ".versions"
+    versions.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return versions / f"{path.stem}.v{version}.{phase}{path.suffix}"
+
+
+def render_chat_message(
+    issue_id: str,
+    candidate: sqlite3.Row,
+    companies: list[str],
+    data: dict[str, Any],
+) -> str:
+    reading_minutes = max(1, round(candidate["word_count"] / 220))
+    source_position = "独立来源" if candidate["source_position"] == "independent" else "第一方来源"
+    displayed_companies = companies[:3]
+    company_text = "、".join(displayed_companies)
+    if len(companies) > 3:
+        company_text += f" 等 {len(companies)} 家"
+    lines = [
+        f"📚 本期英文商业阅读 · {issue_id}",
+        f"标题：{candidate['title']}",
+        f"行业：{candidate['industry']}",
+        f"公司：{company_text}",
+        f"方向：{data['direction_zh']}",
+        f"篇幅：约 {candidate['word_count']:,} 词 · {reading_minutes} 分钟",
+        (
+            f"来源：{candidate['publication']} · {candidate['publication_date']} · "
+            f"{source_position}"
+        ),
+        (
+            f"来源判断：人类来源可信度 {candidate['human_origin_confidence']}/100 · "
+            f"广告风险 {candidate['advertising_risk']}/100"
+        ),
+        f"原文：{candidate['canonical_url']}",
+        "",
+        (
+            f"按需查看：回复“词汇 {issue_id}”或“问题 {issue_id}”；"
+            f"只有回复“完整导读 {issue_id}”才展开全部。"
+        ),
+    ]
+    message = "\n".join(lines)
+    if len(message) > 1000:
+        raise CuratorError(
+            f"generated chat_message is {len(message)} characters; maximum is 1000"
+        )
+    return message
 
 
 def render_prepare(
@@ -1679,6 +1726,7 @@ def command_prepare(
         last_theme,
         duplicate_count,
     )
+    chat_message = render_chat_message(issue_id, candidate, companies, data)
     _, _, packs = ensure_home(home)
     path = packs / f"{run_date}-{issue_id.lower()}-{slugify(candidate['title'])}.md"
     snapshot_path = version_path(path, 1, "prepare")
@@ -1739,7 +1787,13 @@ def command_prepare(
     finally:
         if temp_path and temp_path.exists():
             temp_path.unlink()
-    return {"issue_id": issue_id, "status": "selected", "path": str(path), "sha256": digest}
+    return {
+        "issue_id": issue_id,
+        "status": "selected",
+        "path": str(path),
+        "sha256": digest,
+        "chat_message": chat_message,
+    }
 
 
 def command_revise(
@@ -1810,6 +1864,7 @@ def command_revise(
         last_theme,
         duplicate_count,
     )
+    chat_message = render_chat_message(issue_id, candidate, companies, data)
     path = Path(issue["pack_path"])
     version = int(
         conn.execute(
@@ -1859,6 +1914,7 @@ def command_revise(
         "version": version,
         "path": str(path),
         "sha256": digest,
+        "chat_message": chat_message,
     }
 
 
@@ -1938,10 +1994,6 @@ def command_complete(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str
         lines.append(f"- {require_string(item, 'fact')} ([source]({canonicalize_url(require_string(item, 'url'))}))")
     content = "\n".join(lines) + "\n"
     digest = hashlib.sha256(content.encode()).hexdigest()
-    backup = path.with_suffix(".prepare.md")
-    if not backup.exists():
-        backup.write_text(original, encoding="utf-8")
-        backup.chmod(0o600)
     version = int(
         conn.execute(
             "SELECT COALESCE(MAX(version),0)+1 AS n FROM pack_versions WHERE issue_id=?",

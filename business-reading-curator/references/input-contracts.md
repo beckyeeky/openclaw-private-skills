@@ -209,6 +209,7 @@ Input:
 {
   "candidate_id": 7,
   "run_date": "2026-07-26",
+  "direction_zh": "文章聚焦一家药企的产能与供应链选择，适合观察需求预期、投资时点和执行风险之间的权衡。",
   "why_selected": "An 80–120 English-word rationale that does not reveal the conclusion.",
   "human_origin_explanation": "中文证据说明，并在 fact_citations 中提供链接。",
   "advertising_risk_explanation": "中文商业影响说明，并在 fact_citations 中提供链接。",
@@ -275,12 +276,14 @@ Input:
 `vocabulary` must contain 8–12 entries; the shortened example above shows one only for
 readability. `why_selected` is measured with an English-token word counter and must contain
 80–120 words. Each `expression` must occur in the temporary body. The CLI saves only a short
-source context for audit and never persists the body.
+source context for audit and never persists the body. `direction_zh` must be a single,
+spoiler-free Chinese line of at most 180 characters.
 
 Omit `primary_data_source` when none exists. Never omit `corroborating_source`.
 
 The CLI validates structure and hard source limits, atomically writes Markdown, marks the
-candidate selected, and allocates a stable issue ID.
+candidate selected, and allocates a stable issue ID. Its JSON result includes `chat_message`;
+send that field as the default chat response instead of reading the Markdown file.
 
 To revise an incomplete pack, add its stable identifier to the same input and call:
 
