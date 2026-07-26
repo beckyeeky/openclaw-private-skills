@@ -1,19 +1,18 @@
 ---
 name: codex-image
 description: Image generation via Codex (gpt-5.4). Opt-in bypass pipeline for content moderation. Secure prompt/stdin.
-version: 2.1.0
-author: Hermes Agent
 license: MIT
-category: creative
-tags: [image-generation, codex, openai, gpt-5.4, telegram]
-triggers:
-  - generate image with codex
-  - codex image generation
-  - codex图片生成
-  - 用codex生成图片
 metadata:
   hermes:
+    version: 2.1.0
+    author: Hermes Agent
+    category: creative
     tags: [image-generation, codex, openai, gpt-5.4]
+    triggers:
+      - generate image with codex
+      - codex image generation
+      - codex图片生成
+      - 用codex生成图片
     related_skills: [stable-diffusion]
 ---
 
@@ -172,7 +171,7 @@ Use only when the user explicitly asks for Gemini.
 
 ```bash
 # Basic generation
-uv run /root/.hermes/skills/image-generation/codex-image/scripts/gemini-generate.py \
+uv run {baseDir}/scripts/gemini-generate.py \
   --prompt "your description" --filename "/tmp/gemini_out.png"
 
 # 2K resolution

@@ -10,7 +10,7 @@ skills:
     description: "冷门知识选择题游戏"
     
     # 执行命令
-    command: "node /root/.hermes/workspace/skills/trivia-quiz/scripts/entry_final.mjs"
+    command: "node {baseDir}/scripts/entry_final.mjs"
     
     # 参数映射（Hermes 会将用户消息映射为参数）
     args_mapping:

@@ -8,7 +8,7 @@ When the user sends a photo and says "use this as reference for X", the image is
 
 ```bash
 echo '{"prompt": "make it look like this reference", "reference": "/path/to/user_image.jpg"}' \
-  | python3 /root/.hermes/skills/codex-image/scripts/generate.py
+  | python3 {baseDir}/scripts/generate.py
 ```
 
 ## Codex API Content Construction

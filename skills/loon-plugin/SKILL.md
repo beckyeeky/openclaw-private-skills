@@ -4,12 +4,12 @@ description: >-
   Use when building, debugging, packaging, or publishing Loon plugins (.plugin/.lpx):
   header metadata, [Argument]/[Script]/[MitM]/[URL Rewrite]/[Rule], http-request/response
   scripts, raw hosting pitfalls, and patterns from 可莉/社区 + TabulaBili-Loon. Not for Surge/QX-only modules unless converting.
-version: 1.0.0
-author: beckyeeky / Hermes
 license: MIT
-platforms: [linux, macos, windows]
 metadata:
   hermes:
+    version: 1.0.0
+    author: beckyeeky / Hermes
+    platforms: [linux, macos, windows]
     tags: [loon, plugin, mitm, ios, bilibili, proxy, rewrite]
     related_skills: [github, hermes-agent-skill-authoring]
 ---

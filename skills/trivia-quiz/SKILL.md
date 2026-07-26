@@ -24,7 +24,7 @@ metadata: {"clawdbot":{"emoji":"🎯","requires":{"bins":["node"]},"command":"no
 
 **Action**: Run the skill script and parse its JSON output:
 ```bash
-cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs start
+node {baseDir}/scripts/entry_final.mjs start
 ```
 
 **AI Response**: Parse the returned JSON. Extract `message` and `buttons`. Send the `message` text together with the `buttons` as Telegram inline buttons. Do NOT add any greeting, commentary, or surrounding text.
@@ -34,7 +34,7 @@ cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs start
 
 **Action**: Extract `id` and `index` from the callback data. Example: `trivia_q21_0` → id=`21`, index=`0`:
 ```bash
-cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs answer 21 0
+node {baseDir}/scripts/entry_final.mjs answer 21 0
 ```
 
 **AI Response**: Parse the JSON output. Extract `message` and `buttons`. Send the message text together with the buttons as Telegram inline buttons. No extra text.
@@ -44,7 +44,7 @@ cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs answer
 
 **Action**:
 ```bash
-cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs continue {id}
+node {baseDir}/scripts/entry_final.mjs continue {id}
 ```
 
 **AI Response**: Parse JSON, send message + inline buttons. No extra text.
@@ -54,7 +54,7 @@ cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs contin
 
 **Action**:
 ```bash
-cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs article {id}
+node {baseDir}/scripts/entry_final.mjs article {id}
 ```
 
 **AI Response**: Parse JSON, send message + inline buttons. No extra text.
@@ -64,7 +64,7 @@ cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs articl
 
 **Action**:
 ```bash
-cd ~/.hermes/workspace/skills/trivia-quiz && node scripts/entry_final.mjs end
+node {baseDir}/scripts/entry_final.mjs end
 ```
 
 **AI Response**: Parse JSON, send message + inline buttons. No extra text.

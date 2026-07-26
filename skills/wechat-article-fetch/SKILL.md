@@ -1,19 +1,18 @@
 ---
 name: wechat-article-fetch
 description: "Fetch any web article (WeChat, Medium, paywalled, etc.) via curl+defuddle → Markdown → optional Telegra.ph publishing for mobile-friendly reading."
-version: 3.0.0
-author: Hermes Agent
 license: MIT
-category: media
-tags: [wechat, weixin, article, scraping, curl, defuddle, telegraph, paywall, cloudflare]
-triggers:
-  - fetch article
-  - wechat article
-  - 抓取文章
-  - 微信文章
 metadata:
   hermes:
+    version: 3.0.0
+    author: Hermes Agent
+    category: media
     tags: [wechat, weixin, article, scraping, curl, defuddle, telegraph, paywall, cloudflare]
+    triggers:
+      - fetch article
+      - wechat article
+      - 抓取文章
+      - 微信文章
     related_skills: []
 ---
 

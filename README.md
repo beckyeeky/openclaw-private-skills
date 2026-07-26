@@ -1,103 +1,73 @@
-# Hermes Private Skills
+# OpenClaw Private Skills
 
-> A collection of custom Hermes skills for enhanced AI workflows
+Reusable Agent Skills for OpenClaw and other Agent-Skills-compatible runtimes.
 
-[![Hermes](https://img.shields.io/badge/Hermes-Ready-blue)](https://hermes-agent.nousresearch.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+## Install with `npx`
 
-## 📦 Included Skills
-
-### 1. 🎯 Trivia Quiz
-Fun trivia game with inline buttons and detailed explanations
-
-- **Features**: Interactive quiz game with educational content
-- **Use Case**: Entertainment and learning
-- **Location**: [`trivia-quiz/`](trivia-quiz/)
-
-[→ Read Documentation](trivia-quiz/README.md)
-
----
-
-### 2. 🖼️ Codex Image Generation
-Image generation via Codex (gpt-5.4)
-
-- **Features**: Text-to-image with bypass pipeline, reference images, Telegram delivery
-- **Use Case**: Generate images from text prompts
-- **Location**: [`codex-image/`](codex-image/)
-
-[→ Read Documentation](codex-image/README.md)
-
----
-
-### 3. 📖 Pixiv Novel Extractor
-Download and format Pixiv novels (all-ages public AJAX + R-18 App webview)
-
-- **Features**: Public novel extract → MD/JSON; R-18 fallback via App `refresh_token` + webview; recommended novels
-- **Use Case**: Save / summarize Pixiv novel full text (including login-gated R-18)
-- **Location**: [`pixiv-novel-extractor/`](pixiv-novel-extractor/)
-
----
-
-### 4. 📰 WeChat Article Fetch
-Fetch any web article via curl+defuddle → Markdown → optional Telegra.ph publishing
-
-- **Features**: WeChat/MicroMessenger UA bypass, Telegraph publishing, JS-rendered page fallback
-- **Use Case**: Archive articles with mobile-friendly reading links
-- **Location**: [`wechat-article-fetch/`](wechat-article-fetch/)
-
-[→ Read Documentation](wechat-article-fetch/README.md)
-
-
----
-
-### 5. 🧩 Loon Plugin Engineering
-Build/debug/publish Loon `.plugin` files (MitM, Script, Argument, raw hosting pitfalls)
-
-- **Features**: templates for reject / request+response, raw 404 matrix, 可莉 & deezertidal reference map
-- **Use Case**: Loon 插件开发、TabulaBili 类维护、远程 script-path 发布
-- **Location**: [`loon-plugin/`](loon-plugin/)
-
----
-
-### 6. 📚 Business Reading Curator
-
-Source-verified English long-form business reading packs with durable history and deduplication
-
-- **Features**: Human-origin provenance scoring, advertising-risk gates, industry rotation, SQLite history, exact/event/semantic deduplication, optional OpenAI-compatible embeddings
-- **Use Case**: Recurring pharma, biotech, CDMO, healthcare, and cross-industry business reading
-- **Location**: [`business-reading-curator/`](business-reading-curator/)
-
-## 🚀 Quick Start
-
-Each skill has its own README with detailed installation and usage instructions.
+The [`skills`](https://skills.sh) CLI downloads this repository, discovers every
+`skills/<name>/SKILL.md`, and installs the selected skills for your agent. It is
+run through `npx`; do not install a separate global CLI.
 
 ```bash
-# Clone the repository
-git clone https://github.com/beckyeeky/hermes-private-skills.git
+# Inspect the available skills without installing them.
+npx skills@latest add beckyeeky/openclaw-private-skills --list
 
-# Navigate to a skill
-cd hermes-private-skills/ensemble-jury
+# Install one skill for OpenClaw in the current project.
+npx skills@latest add beckyeeky/openclaw-private-skills \
+  --skill pixiv-novel-extractor --agent openclaw
 
-# Follow the skill's README for setup
+# Install every public skill for OpenClaw in the current project.
+npx skills@latest add beckyeeky/openclaw-private-skills \
+  --skill '*' --agent openclaw
+
+# Make every skill available to OpenClaw globally.
+npx skills@latest add beckyeeky/openclaw-private-skills \
+  --skill '*' --agent openclaw --global
 ```
 
-## 📋 Requirements
+The default install is project-local. Add `--copy` if the target environment
+cannot use symlinks. Each skill documents its own runtime requirements and any
+credentials it needs; installing a skill does not install its runtime
+dependencies or configure external accounts.
 
-- [Hermes](https://hermes-agent.nousresearch.com) installed and configured
-- Node.js runtime environment
-- Git (for cloning)
+## Included skills
 
-## 📄 License
+| Skill | Purpose |
+| --- | --- |
+| [`business-reading-curator`](skills/business-reading-curator/) | Curate source-verified English business reading packs with durable history and deduplication. |
+| [`codex-image`](skills/codex-image/) | Generate images through Codex and send Telegram albums. |
+| [`loon-plugin`](skills/loon-plugin/) | Build, debug, package, and publish Loon `.plugin` / `.lpx` files. |
+| [`pixiv-novel-extractor`](skills/pixiv-novel-extractor/) | Extract public and authenticated Pixiv novels into Markdown or JSON. |
+| [`trivia-quiz`](skills/trivia-quiz/) | Run an inline-button trivia game using deterministic question data. |
+| [`wechat-article-fetch`](skills/wechat-article-fetch/) | Fetch web articles into Markdown and optionally publish them to Telegra.ph. |
 
-All skills in this repository are licensed under the MIT License.
+## Repository layout
 
-See individual [LICENSE](LICENSE) files in each skill directory for details.
+```text
+skills/
+  <skill-name>/
+    SKILL.md       # Agent instructions and required name/description metadata
+    scripts/        # Deterministic helpers, when needed
+    references/     # Load-on-demand technical or domain reference material
+    templates/      # Reusable output templates, when needed
+```
 
-## 🤝 Contributing
+See [AGENTS.md](AGENTS.md) before adding or changing a skill. It documents the
+repository contract for agents and contributors.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Development
 
-## 🙏 Acknowledgments
+Validate discovery locally before publishing:
 
-- Built for [Hermes](https://hermes-agent.nousresearch.com)
-- Inspired by the Hermes community
+```bash
+npx skills@latest add . --list
+```
+
+This repository deliberately has no root `package.json`: `npx` resolves and
+runs the published `skills` CLI, while each skill keeps only the runtime assets
+it needs.
+
+## License
+
+Unless a skill directory states otherwise, this repository is available under
+the [MIT License](LICENSE).
