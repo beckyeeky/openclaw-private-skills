@@ -57,6 +57,16 @@ Build/debug/publish Loon `.plugin` files (MitM, Script, Argument, raw hosting pi
 - **Use Case**: Loon 插件开发、TabulaBili 类维护、远程 script-path 发布
 - **Location**: [`loon-plugin/`](loon-plugin/)
 
+---
+
+### 6. 📚 Business Reading Curator
+
+Source-verified English long-form business reading packs with durable history and deduplication
+
+- **Features**: Human-origin provenance scoring, advertising-risk gates, industry rotation, SQLite history, exact/event/semantic deduplication, optional OpenAI-compatible embeddings
+- **Use Case**: Recurring pharma, biotech, CDMO, healthcare, and cross-industry business reading
+- **Location**: [`business-reading-curator/`](business-reading-curator/)
+
 ## 🚀 Quick Start
 
 Each skill has its own README with detailed installation and usage instructions.

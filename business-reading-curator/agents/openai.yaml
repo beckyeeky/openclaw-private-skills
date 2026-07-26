@@ -1,0 +1,4 @@
+interface:
+  display_name: "Business Reading Curator"
+  short_description: "Curate source-verified English business reading packs"
+  default_prompt: "Use $business-reading-curator to create this issue of my English business reading pack."
