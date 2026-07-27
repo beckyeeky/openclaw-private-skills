@@ -40,6 +40,7 @@ dependencies or configure external accounts.
 | [`pixiv-novel-extractor`](skills/pixiv-novel-extractor/) | Extract public and authenticated Pixiv novels into Markdown or JSON. |
 | [`trivia-quiz`](skills/trivia-quiz/) | Run an inline-button trivia game using deterministic question data. |
 | [`wechat-article-fetch`](skills/wechat-article-fetch/) | Fetch web articles into Markdown and optionally publish them to Telegra.ph. |
+| [`wsj-article-reader`](skills/wsj-article-reader/) | Retrieve and archive WSJ articles the user is already authorized to read, using a local private token. |
 
 ## Repository layout
 
