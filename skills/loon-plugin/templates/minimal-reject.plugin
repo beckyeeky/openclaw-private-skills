@@ -1,17 +1,15 @@
-#!name = Example Reject
-#!desc = 最小 reject 示例：拦截示例广告路径（请改成真实域名/路径）
+#!name = Example Rewrite V2 Reject
+#!desc = Loon 3.5.1 (978)+ 最小拒绝示例；请替换真实域名和路径
 #!author = you
 #!homepage = https://github.com/USER/REPO
 #!icon = https://www.example.com/favicon.ico
-#!tag = example,ads
-#!system = iOS,iPadOS,macOS
-#!loon_version = 3.2.1(733)
+#!tag = example,rewrite-v2
+#!system = iOS,iPadOS,tvOS,macOS
+#!loon_version = 3.5.1(978)
+#!type = normal
 
-# 纯 URL Rewrite 拒绝；不需要 JS。
-# 目标 host 必须出现在 [MitM]。
+[Rewrite]
+http-request if ${url} ~= /^https?:\/\/api\.example\.com\/(?:ad|ads|splash)\// then reject(status=200, body="empty")
 
-[URL Rewrite]
-^https?:\/\/api\.example\.com\/(?:ad|ads|splash)\/ - reject
-
-[MitM]
+[Mitm]
 hostname = api.example.com
