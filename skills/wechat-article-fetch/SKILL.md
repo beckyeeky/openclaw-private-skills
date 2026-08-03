@@ -1,261 +1,207 @@
 ---
 name: wechat-article-fetch
-description: "Fetch any web article (WeChat, Medium, paywalled, etc.) via curl+defuddle → Markdown → optional Telegra.ph publishing for mobile-friendly reading."
+description: "Fetch web articles into durable Markdown archives, download embedded images locally with anti-hotlink handling, and optionally publish image copies to Cloudflare R2 for external reading pages. Use when the user asks to fetch, archive, preserve images from, or publish a WeChat or other web article."
 license: MIT
 metadata:
   hermes:
-    version: 3.0.0
+    version: 4.0.0
     author: Hermes Agent
     category: media
-    tags: [wechat, weixin, article, scraping, curl, defuddle, telegraph, paywall, cloudflare]
+    tags: [wechat, weixin, article, scraping, curl, defuddle, telegraph, cloudflare, r2, images]
     triggers:
       - fetch article
       - wechat article
       - 抓取文章
       - 微信文章
+      - 保存图片
+      - 图片归档
     related_skills: []
 ---
 
-# 文章抓取 + Telegraph 发布（微信 / 非微信通用）
+# 文章抓取 + 本地图片归档 + Cloudflare R2
 
-## 概述
+## 核心原则
 
-核心流水线：**curl 抓取 HTML → defuddle 智能提取转 Markdown → 可选发布到 Telegra.ph**
+这项技能采用**本地优先、R2 可选**的架构：
 
-**微信文章**: curl 需伪装 MicroMessenger UA 绕过滑块。
-**非微信文章**: 用常规浏览器 UA 即可；defuddle + Telegraph 发布流程完全一致。
+- 默认下载正文里的远程图片，并把它们保存到文章 Markdown 旁边的 `assets/<slug>/`；
+- Markdown 使用相对图片路径，因此文章和 `assets/` 目录一起移动即可离线阅读；
+- R2 只是对外发布用的公共镜像，不是唯一存储；
+- 即使 R2 或外部发布失败，也必须保留本地 Markdown 和已经下载的图片；
+- 禁止把 GitHub 私有 raw URL、带 token 的下载 URL、R2 S3 API endpoint 或任何凭据写入 Markdown/Telegraph。
 
-用户只需发一个文章链接，即可拿到干净的 Markdown 正文 + 手机友好的 Telegraph 可读链接。
+公众号图片的防盗链处理方式是：**带文章/微信 Referer 下载一次，然后自己保存**。不要把原始 `mmbiz.qpic.cn` URL 当作长期图床。
 
-## 前置条件
+## 入口
 
-- `curl`（通常已预装）
-- `node` + `npm`（通常已预装）
-- `defuddle` 全局安装：`npm install -g defuddle`
-- `telegraph` Python 包：`pip3 install telegraph`（发布用）
-- Telegraph access token 保存在 `~/.hermes/telegraph_token`
-
-## 何时使用
-
-**微信文章**: `https://mp.weixin.qq.com/s/` 开头的链接。
-**非微信文章**: 任意网页文章链接（Medium、The Atlantic、arxiv 等），需要提取正文 + 保存 + 可选发布 Telegraph。
-
-## 差异备忘
-
-| 环节 | 微信文章 | 非微信文章 |
-|---|---|---|
-| curl UA | 伪装 MicroMessenger/iPhone/zh_CN | 常规浏览器 UA (Chrome/Firefox) |
-| URL 校验 | 需 `mp.weixin.qq.com/s/` | 无需校验，直接抓取 |
-| 保存目录 | `~/.hermes/wechat-articles/` | `~/.hermes/articles/` |
-| 来源标注 | "微信公众号" | 取域名或文章 site 字段 |
-| skip_set | 微信特有广告行（可跳过） | 通常无需过滤 |
-
-## 首次设置
-
-### Telegraph 账号（只需一次）
+脚本必须通过 `{baseDir}` 解析，不能假设固定 checkout 路径：
 
 ```bash
-curl -s "https://api.telegra.ph/createAccount?short_name=BeckChao&author_name=BeckChao" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['access_token'])" \
-  > ~/.hermes/telegraph_token
+# 默认：抓取文章 + 保存本地图片 + 保存本地 Markdown
+python3 {baseDir}/scripts/fetch-wechat.py \
+  "https://mp.weixin.qq.com/s/XXXXX" --images local
+
+# 本地保存后上传 R2；Telegraph 发布版使用 R2 公共图片 URL
+python3 {baseDir}/scripts/fetch-wechat.py \
+  "https://mp.weixin.qq.com/s/XXXXX" --images r2
+
+# 只做本地归档，不尝试 Telegraph
+python3 {baseDir}/scripts/fetch-wechat.py \
+  "https://mp.weixin.qq.com/s/XXXXX" --images local --no-telegraph
 ```
 
-Token 保存后永久可用，后续所有文章共用。
+`--images local` 是默认值。`--images r2` 只有在 R2 环境变量已配置且确实需要外部图片 URL 时才使用。
 
-## 操作流程
+## 本地归档格式
 
-### Step 1 — curl 抓取原始 HTML
+默认输出目录：
 
-```bash
-curl -sL \
-  -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.34(0x16082222) NetType/WIFI Language/zh_CN" \
-  -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" \
-  -H "Accept-Language: zh-CN,zh;q=0.9" \
-  "<URL>" -o /tmp/wx_article.html
+```text
+~/.hermes/wechat-articles/
+├── 文章标题.md
+└── assets/
+    └── 文章标题/
+        ├── 001-<source-url-hash>.jpg
+        ├── 002-<source-url-hash>.webp
+        └── ...
 ```
 
-关键埋点：`MicroMessenger/8.0.34`、`iPhone` 平台、`zh_CN` 语言。
+Markdown 位于 `~/.hermes/wechat-articles/` 根目录，因此相对引用：
 
-### Step 2 — defuddle 智能提取 + 转 Markdown
-
-```bash
-npx defuddle parse /tmp/wx_article.html -m -j
-```
-
-输出示例（JSON）：
-```json
-{
-  "title": "文章标题",
-  "author": "作者",
-  "description": "摘要",
-  "content": "## Markdown 正文...",
-  "wordCount": 1531,
-  "published": "2025-01-01",
-  "domain": "mp.weixin.qq.com"
-}
-```
-
-### Step 3 — 保存为 Markdown 文件
-
-保存路径：`~/.hermes/wechat-articles/<title-slug>.md`
-
-格式：
 ```markdown
-# 文章标题
-
-**作者**: xxx
-**来源**: 微信公众号
-**链接**: <URL>
-**抓取时间**: YYYY-MM-DD HH:MM
-**字数**: 1531
-
----
-
-## Markdown 正文...
+![图片说明](assets/文章标题/001-xxxxxxxxxx.jpg)
 ```
 
-### Step 4 — 发布到 Telegra.ph（可选）
+文件名包含顺序号和源 URL 哈希：
 
-将 Markdown 正文转换为 Telegraph 的 Node 格式（JSON 数组），POST 到 `https://api.telegra.ph/createPage`。
+- 同一文章重复抓取时复用已有图片，不重复下载；
+- 不使用不稳定的远程图片文件名；
+- 下载先写成 `.part`，校验通过后原子改名；
+- 默认单图上限 20 MiB；
+- 失败图片保留原远程 URL，正文和其他图片继续处理。
 
-核心转换逻辑（Python）：
-
-```python
-import json, urllib.request, re
-
-def publish_to_telegraph(title, author, author_url, content_md, token):
-    """将微信文章发布到 Telegra.ph，返回可读链接"""
-    nodes = []
-    skip_set = {"李姝 李姝", "在小说阅读器读本章", "去阅读",
-                "微信扫一扫", "使用小程序", "继续滑动看下一个",
-                "潇湘晨报", "向上滑动看下一个"}
-    for line in content_md.split("\n"):
-        s = line.strip()
-        if not s or s in skip_set:
-            continue
-        # 图片行
-        img = re.findall(r'!\[([^\]]*)\]\(([^)]+)\)', s)
-        if img:
-            pure = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', '', s).strip()
-            if not pure or pure in {"△", "▲", "图：", "—"} or len(pure) < 5:
-                for alt, src in img:
-                    n = {"tag": "img", "attrs": {"src": src}}
-                    if alt:
-                        n = {"tag": "figure", "children": [n, {"tag": "figcaption", "children": [alt]}]}
-                    nodes.append(n)
-                continue
-        # 标题行
-        if s.startswith("## "):
-            nodes.append({"tag": "h3", "children": [s[3:].strip("**")]})
-        elif s.startswith("**") and s.endswith("**") and len(s) > 4:
-            nodes.append({"tag": "h4", "children": [s.strip("*")]})
-        else:
-            nodes.append({"tag": "p", "children": [s]})
-
-    payload = {
-        "access_token": token,
-        "title": title,
-        "author_name": author or "",
-        "author_url": author_url,
-        "content": nodes
-    }
-    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.telegra.ph/createPage",
-        data=data,
-        headers={"Content-Type": "application/json; charset=utf-8"},
-        method="POST"
-    )
-    result = json.loads(urllib.request.urlopen(req).read())
-    if result.get("ok"):
-        return result["result"]["url"]
-    raise RuntimeError(f"Telegraph 发布失败: {result.get('error')}")
-```
-
-## Hermes 自动执行流程
-
-当用户发来文章链接时，自动执行完整流水线：
-
-### 微信文章流程
-
-1. **检测 URL**: 确认 `mp.weixin.qq.com/s/` 开头
-2. **curl 抓取**（MicroMessenger UA）→ `/tmp/wx_article.html`
-3. **defuddle 解析** → 提取 title/author/content/wordCount
-4. **保存 Markdown** → `~/.hermes/wechat-articles/<slug>.md`
-5. **发布 Telegraph** → 调用 API 发布，返回 `https://telegra.ph/...` 链接
-6. **回复用户**: 标题 + 作者 + 字数 + 本地路径 + Telegraph 链接
-
-### 非微信文章流程
-
-**⚠️ 重要：需要保留图片时，跳过 web_extract，直接走 curl + defuddle。**
-
-`web_extract` 会剥离所有图片引用（BBC、新闻网站等），适合纯文字摘要场景。如果用户要存档、发布 Telegraph、或保留原版面，`web_extract` 的输出不可用——图片全丢。
-
-1. **判断是否需保留图片**：
-   - 只需文字摘要 → `web_extract` 最快
-   - 需保留图片 / 发布 Telegraph → 直接跳 step 2，走 curl + defuddle
-2. **curl 常规 UA 抓取** → `/tmp/article.html`
-3. **defuddle 解析** → `npx defuddle parse /tmp/article.html -m -j`，提取 title/author/content。若输出为空，说明页面是 JS 渲染 SPA，跳到下一步
-4. **浏览器 fallback**（defuddle 无输出时）→ 对重度 JS 渲染的 SPA（Gemini 分享链接、React/Vue 单页应用等），curl 只能拿到骨架 HTML。改用 `browser_navigate` + 立即截图 `browser_vision(annotate=true, question="提取全部可见文字")`。首次加载后尽快截图——部分 SPA 有 bot 检测，滚动或延迟后内容会清空/限流。annotations 中的元素 label（如 e19 = "You said ..."）可补充截图未覆盖的长文本。
-5. **保存 Markdown** → `~/.hermes/articles/<slug>.md`
-6. **发布 Telegraph**（可选）→ 同上
-7. **回复用户**
-
-注意：非微信文章无法直接用 `fetch-wechat.py` 脚本（硬校验 `mp.weixin.qq.com/s/`）。用 Hermes 走手动流程或临时脚本。
-
-生成的 Telegraph 链接会自动用微信原文链接作为 author_url，方便溯源。
-
-## 完整 Python 脚本
-
-见 scripts/fetch-wechat.py（基础抓取保存）和 scripts/publish-telegraph.py（Telegraph 发布）。
-
-## 常见问题
-
-### 微信文章常见问题
-
-1. **滑块验证码** — 更换 UA 中微信版本号（`MicroMessenger/8.0.52`）或 iPhone 机型。保持 `MicroMessenger/` + `iPhone` + `zh_CN` 三个关键要素。
-
-2. **npx: command not found** — `npm install -g defuddle`
-
-3. **defuddle 输出为空** — 检查 curl 是否返回有效 HTML；部分文章有访问权限限制。
-
-4. **频次限制** — 短时间同一公众号抓取多篇可能触发微信临时封 IP。
-
-5. **图片防盗链** — Defuddle 保留图片 URL，但微信图床有防盗链。Telegraph 页面上图片通常可正常显示（微信白名单了 Telegra.ph 的 Referer）。
-
-6. **Telegraph 内容格式** — 只支持 h2-h4 / p / img / figure / ul/ol + li。不支持 `<table>`、`<code>` 等复杂标签。正文中的表格会被降级为纯文本段落。
-
-7. **Telegraph token 丢失** — 重新 `curl` 调用 `createAccount` 生成新 token。旧页面不受影响，但新页面会用新账号发布。
-
-8. **CONTENT_TOO_BIG** — Telegraph API 对 content JSON 有 ~64KB 大小限制（约 10,000 字中文）。超长文章会报此错误。解决方案：截取正文主要部分（去掉附录/编者按/Claude 回应等非核心内容），或将文章拆为两部分分别发布 `(1/2)` / `(2/2)`。
-
-### 非微信文章常见问题
-
-1. **Cloudflare 防护** — 大量网站（The Atlantic、Medium、New Yorker 等）启用 Cloudflare 机器人检测。腾讯云轻量云（中国大陆）的 IP 段可能被直接硬 403 拦截（无验证挑战可点）。解决方案：找 archive.md 快照、textise 工具、或用用户提供的其他渠道链接。
-
-2. **Paywall** — 部分新闻网站有付费墙。优先尝试 `12ft.io`/`outline.com`/`textise.iitty.com` 等 proxy 服务，但这些服务在中国大陆 VPS 也可能被 DNS 封锁。备选：尝试浏览器工具（`browser_navigate`）模拟真实用户。
-
-3. **DNS 不可达** — 中国大陆 VPS 对部分境外域名（archive.md、textise 等）DNS 解析失败。可用 `dig @8.8.8.8` 解析 IP，再用 `curl --connect-to` 直连。
-
-4. **JS 渲染页面（Gemini 分享链接等）** — 使用 Shadow DOM / Web Components 的 SPA（如 Gemini 分享页面），curl 只能拿到空骨架。改走浏览器 fallback（见流程图 step 4）。关键埋点：首次 `browser_navigate` 后立即截图，不要滚动——部分页面在交互后触发 bot 检测并清空内容。annotations 中的元素 labels 能捕获 accessibility tree 不可见的长文本，是截图的重要补充源。详见 `references/js-rendered-pages.md`。
-
-## 验证清单
+## 抓取与防盗链流程
 
 ### 微信文章
 
-- [ ] URL 以 `https://mp.weixin.qq.com/s/` 开头
-- [ ] curl 返回 HTTP 200（MicroMessenger UA）
-- [ ] defuddle 成功解析出 title + content
-- [ ] 文件保存到 `~/.hermes/wechat-articles/`
-- [ ] （可选）Telegraph 发布成功，返回可访问链接
-- [ ] 回复中包含标题/作者/字数/本地路径/Telegraph 链接
+1. 检查 URL 的 host 是 `mp.weixin.qq.com`，path 以 `/s/` 开头；
+2. 用 curl + iPhone/MicroMessenger/zh_CN User-Agent 抓取 HTML；
+3. 用 `npx defuddle parse ... -m -j` 提取 Markdown；
+4. 提取 Markdown 图片；
+5. 图片请求依次尝试文章 URL 和 `https://mp.weixin.qq.com/` Referer，并在失败时切换移动 Safari UA；
+6. 检查 Content-Type / magic bytes / 文件大小；
+7. 写入 `assets/<slug>/`，把成功图片改成相对路径；
+8. 生成本地 Markdown；
+9. 如使用 `--images r2`，再上传已落盘的本地文件；
+10. 有 Telegraph token 时才尝试发布 Telegraph。
 
-### 非微信文章
+### 普通网页
 
-- [ ] 判断：纯文字摘要走 web_extract，需保留图片/发布 Telegraph 走 curl+defuddle
-- [ ] curl：常规浏览器 UA 抓取 → `/tmp/article.html`
-- [ ] defuddle 成功解析 → 保存 markdown；若输出为空，走浏览器 fallback
-- [ ] 浏览器 fallback（可选）：`browser_navigate` + `browser_vision(annotate=true)` 提取
-- [ ] 文件保存到 `~/.hermes/articles/`
-- [ ] 来源标注为域名或 site 字段
-- [ ] （可选）Telegraph 发布成功，注意 CONTENT_TOO_BIG 限制（>~64KB 需截断或拆分）
+用户只要文字摘要时可以使用纯文本网页抽取；只要用户要求保留图片、归档或发布，就必须使用 curl + defuddle，并执行同样的本地图片保存和相对路径改写流程。JS SPA 在 curl 没有正文时才使用浏览器 fallback。
+
+## Cloudflare R2 配置
+
+详细的低复杂度操作教程在：
+
+```text
+{baseDir}/references/cloudflare-r2-setup.md
+```
+
+教程优先使用 Cloudflare 管理的 `r2.dev` 公共开发 URL，不要求一开始配置域名。以后换自定义域名只需修改 `CF_R2_PUBLIC_BASE_URL`。
+
+### 环境变量
+
+必需：
+
+```text
+CF_R2_ACCOUNT_ID
+CF_R2_ACCESS_KEY_ID
+CF_R2_SECRET_ACCESS_KEY
+CF_R2_BUCKET
+CF_R2_PUBLIC_BASE_URL
+```
+
+可选：
+
+```text
+CF_R2_KEY_PREFIX=wechat
+```
+
+推荐的 R2 Token 权限是只针对目标 bucket 的 **Object Read & Write**。`CF_R2_PUBLIC_BASE_URL` 必须是公共 `r2.dev` 地址或自定义域名，例如：
+
+```text
+https://pub-xxxxxxxxxxxxxxxx.r2.dev
+```
+
+不能填写：
+
+```text
+https://<account-id>.r2.cloudflarestorage.com
+```
+
+后者是上传用的 S3 API endpoint，不是读图用的公开地址。
+
+### R2 上传规则
+
+- 使用 Python 标准库实现 AWS Signature Version 4，不额外依赖 boto3；
+- key 默认形如 `wechat/<article-slug>/<filename>`；
+- 上传失败按图片逐张记录，不能撤销本地文件；
+- Telegraph 发布版只使用公共 R2 URL，不使用本地相对路径；
+- 凭据只从环境变量读取，不打印值，不写入生成文件。
+
+## Telegraph
+
+Telegraph 页面只能引用公网 HTTPS 图片 URL，不能引用 `assets/...` 相对路径。
+
+- `--images r2`：本地保存完成后，Telegraph 发布版使用 R2 公共 URL；
+- `--images local`：本地归档完整，但 Telegraph 发布版暂时保留公众号原 URL，图片显示取决于 Telegraph/微信图床的兼容性；
+- 不把 Telegraph `/upload` 当作可靠依赖；当前主路径是 R2 公共 URL；
+- Telegraph 的 `createPage` 内容仍受大小限制，超长文章需要截断或拆分；
+- `scripts/publish-telegraph.py` 用于已有 Markdown，已有图片 URL 必须是公网 HTTPS URL。
+
+## 自动执行规则
+
+当用户发来微信公众号链接并要求抓取、保存、阅读或保留图片时：
+
+1. 默认用本地优先流程，不等待用户额外确认；
+2. 默认选择 `--images local`；
+3. 如果用户已经配置 R2，且明确要求外部发布/公共图片 URL，选择 `--images r2`；
+4. R2 配置缺失时，不反复尝试，也不要求用户粘贴 secret 到聊天；指出缺失的环境变量，并给出环境变量设置入口；
+5. 结束时报告标题、作者、字数、本地 Markdown 路径、图片发现/本地保存/R2 上传/失败数量和外部链接；
+6. 不承诺 Telegraph 图片一定可用，失败时仍交付本地归档。
+
+## 依赖与文件
+
+- `curl`、`node`、`npm`、`defuddle`；
+- `scripts/fetch-wechat.py`：抓取、解析、本地归档、可选 R2、可选 Telegraph；
+- `scripts/image_assets.py`：图片下载、格式识别、缓存、Markdown 改写、R2 SigV4 客户端；
+- `scripts/publish-telegraph.py`：把已有公网图片 Markdown 发布到 Telegraph；
+- `references/cloudflare-r2-setup.md`：R2 面板逐步教程；
+- `references/telegraph-api.md`：Telegraph API 约束；
+- `references/js-rendered-pages.md`：JS 页面 fallback。
+
+## 验证清单
+
+在技能目录执行：
+
+```bash
+python3 -m py_compile scripts/fetch-wechat.py scripts/image_assets.py scripts/publish-telegraph.py
+PYTHONPATH=scripts python3 scripts/test_image_assets.py
+python3 scripts/fetch-wechat.py --help
+```
+
+发布前还要执行：
+
+```bash
+npx skills@latest add . --list
+```
+
+`npx skills@latest add . --list` 只做 discovery 检查，不要用它修改用户已安装的技能。
+
+## 常见故障
+
+- **公众号图片 403/非图片响应**：先确认文章 URL 可访问；脚本已经尝试两种 Referer 和两种移动 UA。保留失败 URL，后续可补下载。
+- **R2 401/403**：检查 token 类型、bucket 范围、Object Read & Write 权限，以及 Account ID（不是 Zone ID）。
+- **R2 URL 404**：确认已开启 Public Development URL，访问的是具体对象路径，且 URL 前缀没有多余斜杠。
+- **公开 bucket 根目录空白**：正常，R2 不提供根目录列表；直接访问具体对象 URL。
+- **账单担忧**：使用 Standard，不开 Infrequent Access；不要让脚本无限重试；定期检查 R2 Usage/Billing。免费额度以 Cloudflare 当前价格页为准。

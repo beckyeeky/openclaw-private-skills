@@ -3,9 +3,13 @@
 用法: python3 fetch-wechat.py <mp.weixin.qq.com/s/...>
 """
 
+import argparse
 import subprocess, json, re, os, sys, urllib.request, tempfile
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlparse
+
+from image_assets import ImageRewriteResult, R2Client, R2Config, make_slug, rewrite_images
 
 
 def fetch(url: str) -> dict:
@@ -33,15 +37,27 @@ def fetch(url: str) -> dict:
     return json.loads(r.stdout)
 
 
-def save_markdown(url: str, data: dict) -> str:
-    """保存 Markdown 到本地"""
-    out_dir = os.path.expanduser("~/.hermes/wechat-articles")
-    os.makedirs(out_dir, exist_ok=True)
+def save_markdown(url: str, data: dict, image_mode: str = "local") -> tuple[str, str, ImageRewriteResult]:
+    """保存带本地图片相对路径的 Markdown，并返回发布版正文。"""
+    out_dir = Path(os.path.expanduser("~/.hermes/wechat-articles"))
+    out_dir.mkdir(parents=True, exist_ok=True)
     title = data.get("title", "untitled")
-    slug = re.sub(r'[^\w\u4e00-\u9fff_-]', '-', title)
-    slug = re.sub(r'-+', '-', slug).strip('-') or "article"
-    fpath = os.path.join(out_dir, f"{slug}.md")
+    slug = make_slug(title)
+    fpath = out_dir / f"{slug}.md"
+    source_content = data.get("content", "") or ""
 
+    r2_client = None
+    if image_mode == "r2":
+        r2_client = R2Client(R2Config.from_env())
+
+    image_result = rewrite_images(
+        source_content,
+        out_dir,
+        slug,
+        url,
+        mode=image_mode,
+        r2_client=r2_client,
+    )
     md = f"""# {data.get('title', '')}
 
 **作者**: {data.get('author', '') or '-'}
@@ -49,14 +65,14 @@ def save_markdown(url: str, data: dict) -> str:
 **链接**: {url}
 **抓取时间**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 **字数**: {data.get('wordCount', '')}
+**图片**: 本地归档（{image_result.downloaded}/{image_result.discovered}）
 
 ---
 
-{data.get('content', '')}
+{image_result.local_markdown}
 """
-    with open(fpath, 'w', encoding='utf-8') as f:
-        f.write(md)
-    return fpath
+    fpath.write_text(md, encoding="utf-8")
+    return str(fpath), image_result.publication_markdown, image_result
 
 
 def md_to_telegraph_nodes(md_text: str) -> list:
@@ -119,30 +135,59 @@ def publish_telegraph(title: str, author: str, author_url: str, content_md: str,
     raise RuntimeError(f"Telegraph 发布失败: {result.get('error')}")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("用法: fetch-wechat.py <mp.weixin.qq.com/s/...>", file=sys.stderr)
-        sys.exit(1)
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="微信公众号文章 → Markdown + 本地图片归档 + 可选 R2")
+    parser.add_argument("url", help="mp.weixin.qq.com/s/... 文章链接")
+    parser.add_argument(
+        "--images",
+        choices=("local", "r2"),
+        default="local",
+        help="图片策略：local（默认，保存到 Markdown 同目录）或 r2（本地保存后上传 R2）",
+    )
+    parser.add_argument(
+        "--no-telegraph",
+        action="store_true",
+        help="不尝试发布 Telegraph",
+    )
+    return parser
 
-    wx_url = sys.argv[1]
+
+if __name__ == "__main__":
+    args = build_parser().parse_args()
+    wx_url = args.url
 
     # Step 1-2: 抓取 + 解析
     data = fetch(wx_url)
 
-    # Step 3: 保存到本地
-    fpath = save_markdown(wx_url, data)
+    # Step 3: 保存到本地；默认永远保存本地图片
+    try:
+        fpath, publication_content, image_result = save_markdown(wx_url, data, args.images)
+    except ValueError as exc:
+        print(f"❌ {exc}", file=sys.stderr)
+        sys.exit(2)
 
     title = data.get("title", "未命名文章")
     print(f"\n✅ {title}")
     print(f"📁 {fpath}")
-    if data.get('author'):
+    print(
+        f"🖼️  图片：发现 {image_result.discovered}，本地保存 {image_result.downloaded}，"
+        f"R2 上传 {image_result.uploaded}，失败 {image_result.failed}"
+    )
+    if image_result.failed:
+        for record in image_result.records:
+            if record.error:
+                print(f"   ⚠️ {record.source_url[:100]}: {record.error}", file=sys.stderr)
+    if data.get("author"):
         print(f"✍️  {data['author']}")
-    if data.get('wordCount'):
+    if data.get("wordCount"):
         print(f"🔢 {data['wordCount']} 字")
 
-    # Step 4: 发布 Telegraph
+    # Step 4: 发布 Telegraph（可选）。R2 模式使用 R2 公共 URL，local 模式
+    # 保持原始 URL 以兼容当前 Telegraph 发布逻辑。
     token_path = os.path.expanduser("~/.hermes/telegraph_token")
-    if os.path.exists(token_path):
+    if args.no_telegraph:
+        print("⏭️  已跳过 Telegraph")
+    elif os.path.exists(token_path):
         print("📤 发布到 Telegraph...", file=sys.stderr)
         with open(token_path) as f:
             token = f.read().strip()
@@ -151,8 +196,8 @@ if __name__ == "__main__":
                 title,
                 data.get("author", ""),
                 wx_url,
-                data.get("content", ""),
-                token
+                publication_content,
+                token,
             )
             print(f"🔗 {teleg_url}")
         except Exception as e:
