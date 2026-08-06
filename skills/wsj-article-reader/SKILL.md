@@ -9,7 +9,7 @@ description: >-
 license: MIT
 metadata:
   hermes:
-    version: 0.1.0
+    version: 0.2.0
     author: beckyeeky
     category: media
     tags: [wsj, dow-jones, article, graphql, archive, reading]
@@ -54,6 +54,8 @@ is not entitled to read them.
 
 ## Required setup
 
+### 1. Authorization env var
+
 The user must have a valid WSJ/Dow Jones subscription or other legitimate
 access and must locally provide the current app `Authorization` header value:
 
@@ -63,6 +65,7 @@ access and must locally provide the current app `Authorization` header value:
 ```
 
 If it is missing, ask the user to create it in their private agent environment
+([Set WSJ_DJ_AUTHORIZATION](minis://settings/environments?create_key=WSJ_DJ_AUTHORIZATION&create_value=&create_note=WSJ%20iOS%20app%20Authorization%20header%20for%20shared-data.dowjones.io))
 and explain that it contains the complete `Authorization` header value captured
 from **their own** authenticated WSJ app request to:
 
@@ -73,7 +76,7 @@ https://shared-data.dowjones.io/gateway/graphql
 The token can expire or be revoked. Prompt for a fresh value on authorization
 failure. Do not ask the user to paste it into chat.
 
-### Non-secret request template
+### 2. Non-secret request template
 
 Store the mutable request shape at:
 
@@ -82,101 +85,123 @@ Store the mutable request shape at:
 ```
 
 It must contain the endpoint, `ArticleContent` operation name, persisted-query
-query object, and required **non-secret** app/Apollo headers. It must not
-contain `Authorization`, Cookie, tokens, a full captured request URL, response
-body, or article data. Refresh it from a newly captured request when WSJ
-changes its persisted query or app version.
+object, and required **non-secret** app/Apollo headers. It must not contain
+`Authorization`, Cookie, tokens, a full captured request URL with secrets,
+response body, or article data.
 
-The bundled helper reads the token only from `WSJ_DJ_AUTHORIZATION`, injects it
-at runtime, and deliberately overrides `Accept-Language` to:
+**Bootstrap from the bundled example** (captured shape, iOS app `15.6.1`,
+2026-08-06):
 
-```http
-Accept-Language: en-US,en;q=0.9
+```sh
+mkdir -p ~/.openclaw/wsj-article-reader
+cp {baseDir}/references/template.example.json \
+  ~/.openclaw/wsj-article-reader/template.json
 ```
 
-This controls language preference only; it is not authentication. Keep the
-remaining App version/client headers internally consistent with the template.
+**Or rebuild from a fresh local capture** (HTTP Toolkit-style dump directory
+with `request_header_raw.txt`, or a raw request-header file):
 
-Runtime state and exported articles belong outside `{baseDir}`, for example:
+```sh
+python3 {baseDir}/scripts/build_template.py /path/to/capture-dir \
+  -o ~/.openclaw/wsj-article-reader/template.json
+```
+
+Refresh the template when WSJ rotates the persisted-query hash or app version.
+The fetch helper reads the token only from `WSJ_DJ_AUTHORIZATION`, injects it
+at runtime, and overrides `Accept-Language` to `en-US,en;q=0.9`.
+
+Runtime state and exported articles:
 
 ```text
 ~/.openclaw/wsj-article-reader/
+  template.json
+  state.json
   articles/
 ```
 
-## Observed API scope
+Override the runtime root with `WSJ_READER_HOME` if needed.
 
-The iOS traffic uses:
+## Observed API scope
 
 ```text
 GET https://shared-data.dowjones.io/gateway/graphql
 ```
 
-with Apollo persisted-query metadata in URL query parameters and headers such
-as `x-apollo-operation-name`, `x-apollo-operation-id`, client name/version, and
-an `Authorization` header for entitled content.
+Apollo persisted-query metadata lives in URL query parameters. Required
+non-secret headers include `x-apollo-operation-name`, `x-apollo-operation-id`
+(sha256 of the query), client name/version, and `x-app-version`. Entitled
+content also requires the user's `Authorization` header.
 
-Observed operation names include:
-
-| Operation | Intended handling |
+| Operation | Handling |
 |---|---|
-| `ArticleContent` | Article body and metadata; this is the only article-content operation relevant to this skill. |
-| `BundledRecommendedArticles` | Optional, user-visible recommendations; do not fetch by default. |
-| `RecommendedAuthors`, `RecommendedCompanies`, `MyCompanies` | Personalization features; out of scope. |
-| `MarketDataStrap`, `TradingSessions` | Public/market data; out of scope. |
+| `ArticleContent` | Article body and metadata — **only** content op this skill calls. |
+| `SummaryCollectionContentV2` | Home/section rails; do not fetch by default. |
+| `BundledRecommendedArticles`, `RecommendedAuthors`, … | Personalization; out of scope. |
+| `MarketDataStrap`, `TradingSessions`, `InstrumentsSubscription` | Market data; out of scope. |
+| Analytics / Piano / Braze / Adobe / Optimizely / Permutive | Never call. |
 
-Do **not** intercept or use analytics, ad-tech, experimentation, or subscription
-experience endpoints (Permutive, Piano, Braze, Adobe, Optimizely, etc.).
+Observed (2026-08-06) ArticleContent persisted-query sha256:
+
+```text
+4253f896c39fef877b22e45929c887bf48d34134d476f345175c1c2b7c4dbf70
+```
+
+Variables:
+
+```json
+{
+  "filterByScope": "MOBILE",
+  "id": "<origin id>",
+  "idType": "originid"
+}
+```
+
+See [`references/response-schema.md`](references/response-schema.md) for body
+block types and Markdown mapping.
 
 ## Workflow
 
 ### 1. Validate the task and URL
 
-- Confirm the user supplied a WSJ article URL or a known WSJ article ID.
+- Confirm the user supplied a WSJ article URL or origin id (`SB…` / `WP-WSJ-…`).
+- Check credential presence without revealing it.
 - State when an article is unavailable due to entitlement; never promise access.
-- Check the credential is present without revealing it.
 
-### 2. Obtain a request template safely
+### 2. Ensure template exists
 
-The GraphQL gateway uses persisted-query values that may change. Rather than
-hard-code a stale hash, obtain a **fresh locally captured** `ArticleContent`
-request template from the user's own authenticated session. Preserve only the
-non-secret request shape in a local template, and keep the authorization value
-in `WSJ_DJ_AUTHORIZATION`.
-
-The template needs:
-
-- endpoint and method;
-- `operationName=ArticleContent`;
-- persisted-query/variables query parameter structure;
-- required non-secret Apollo and app-version headers.
-
-Never commit captured headers, query variables containing identifiers, raw
-responses, or tokens.
+If `~/.openclaw/wsj-article-reader/template.json` is missing, copy the bundled
+example or run `build_template.py` on a fresh local `ArticleContent` capture.
 
 ### 3. Fetch one requested article
 
-Run the deterministic helper; it reads the non-secret local template and the
-private environment token separately:
-
 ```sh
-python3 {baseDir}/scripts/fetch_article.py --origin-id '<WSJ origin ID>'
+# By origin id
+python3 {baseDir}/scripts/fetch_article.py --origin-id 'SB…'
+
+# By WSJ URL (resolves public articleId / SB… marker, then one ArticleContent call)
+python3 {baseDir}/scripts/fetch_article.py --url 'https://www.wsj.com/…'
+
+# Offline parse of an already-authorized JSON response (no network)
+python3 {baseDir}/scripts/fetch_article.py --from-json ./response.json
 ```
+
+Flags:
+
+| Flag | Meaning |
+|---|---|
+| `--allow-once` | Bypass only the 15-minute local cooldown for one interactive run |
+| `--print-md` | Print saved Markdown to stdout after write |
 
 The helper is single-request, single-threaded and applies a randomized 2–6
 second preflight wait plus local cooldown/hour/day limits. It makes no retry,
-polling, recommendation, analytics, or prefetch calls. See
-[`references/behavior-policy.md`](references/behavior-policy.md) before any
-change to its limits or timing.
-
-Send only the requested `ArticleContent` query with the user's authorization.
-If the response is an access denial, stop. If successful, extract title,
-byline, publication time, canonical URL, and the article body from the returned
-JSON.
+polling, recommendation, analytics, or prefetch calls. URL resolution may
+perform **one** unauthenticated GET of the public article HTML solely to read
+`articleId` / `SB…`; it does not use HTML as the article body. See
+[`references/behavior-policy.md`](references/behavior-policy.md).
 
 ### 4. Save and present
 
-Write a Markdown file under `~/.openclaw/wsj-article-reader/articles/` using:
+Markdown is written under `~/.openclaw/wsj-article-reader/articles/`:
 
 ```markdown
 # <title>
@@ -184,13 +209,29 @@ Write a Markdown file under `~/.openclaw/wsj-article-reader/articles/` using:
 - Source: Wall Street Journal
 - URL: <canonical URL>
 - Author: <byline>
+- Section: <section>
 - Published: <timestamp>
+- Updated: <timestamp>
+- Origin ID: <originId>
 - Retrieved: <local timestamp>
+
+> <standfirst>
 
 ---
 
 <article body>
 ```
+
+Body mapping (observed iOS schema):
+
+| Block | Markdown |
+|---|---|
+| `ParagraphArticleBody` | Paragraph; LINK/BOLD/ITALIC applied |
+| `BlockquoteArticleBody` | Blockquote |
+| `TaglineArticleBody` | Italic line |
+| `ImageArticleBody` | Image + caption/credit |
+| `AudioArticleBody` / `VideoArticleBody` | Linked media line |
+| `NewsletterInsetArticleBody` | Skipped |
 
 Report the saved path and a concise summary. Translate or produce study notes
 only at the user's request. Preserve attribution and link to the original.
@@ -201,9 +242,18 @@ only at the user's request. Preserve attribution and link to the original.
 |---|---|
 | Missing `WSJ_DJ_AUTHORIZATION` | Request private local setup; never ask for it in chat. |
 | 401 / 403 / entitlement denied | Stop; ask the user to reauthenticate in WSJ or refresh their own token. |
-| Persisted query rejected | Ask for a newly captured `ArticleContent` request template. |
-| Response schema changed | Save no raw sensitive response; update a local parser only after inspecting a user-authorized sample. |
-| Rate limit | Stop and wait; do not retry aggressively. |
+| Persisted query rejected | Rebuild template from a newly captured `ArticleContent` request. |
+| Response schema changed | Save no raw sensitive response; update parser only after a user-authorized sample. |
+| Rate limit / local cooldown | Stop and wait; do not retry aggressively. |
+| URL origin id not found | Ask for `--origin-id` from the app or a fresher URL. |
+
+## Agent checklist
+
+1. `[ -n "$WSJ_DJ_AUTHORIZATION" ]` → if missing, send env deep link; stop.
+2. Ensure `template.json` (copy example or `build_template.py`).
+3. Run `fetch_article.py` once with `--url` or `--origin-id`.
+4. Read the saved Markdown; summarize or translate only if asked.
+5. On auth/template failure, stop; do not probe other operations.
 
 ## Non-goals
 
@@ -211,3 +261,4 @@ only at the user's request. Preserve attribution and link to the original.
 - Bulk crawling, syndication, training datasets, or republication of restricted WSJ text.
 - Modifying WSJ account, subscription, recommendation, or tracking state.
 - Reusing this credential with unrelated Dow Jones properties.
+- Calling any GraphQL operation other than `ArticleContent` for this skill.

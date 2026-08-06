@@ -9,17 +9,22 @@ not a crawler.
 - Fetch only an article URL or origin ID explicitly supplied by the user.
 - Fetch one article per invocation; no prefetch, recommendation expansion,
   pagination, search harvesting, or concurrent requests.
+- A WSJ article URL may trigger one unauthenticated GET of the public HTML only
+  to read `articleId` / `SB…` markers, then one authorized `ArticleContent`
+  request. Do not treat HTML as the article body. If public HTML is unavailable,
+  require `--origin-id` instead of probing other endpoints.
 - Preserve publisher access decisions. A `401`, `403`, entitlement denial, or
   paywall response ends the run immediately.
 - Do not call analytics, advertising, experimentation, push, or personalization
   services merely to imitate a mobile app.
+- Do not call GraphQL operations other than `ArticleContent`.
 
 ## Rate limits
 
 The fetcher enforces these conservative local limits:
 
 | Limit | Default |
-|---|---:|
+|---:|---:|
 | Concurrent article requests | 1 |
 | Minimum time between successful/attempted requests | 15 minutes |
 | Maximum requests per rolling hour | 6 |

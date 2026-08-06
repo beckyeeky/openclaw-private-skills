@@ -1,0 +1,36 @@
+{
+  "endpoint": "https://shared-data.dowjones.io/gateway/graphql",
+  "operation_name": "ArticleContent",
+  "query": {
+    "extensions": {
+      "clientLibrary": {
+        "name": "apollo-ios",
+        "version": "1.23.0"
+      },
+      "persistedQuery": {
+        "sha256Hash": "4253f896c39fef877b22e45929c887bf48d34134d476f345175c1c2b7c4dbf70",
+        "version": 1
+      }
+    },
+    "operationName": "ArticleContent",
+    "variables": {
+      "filterByScope": "MOBILE",
+      "id": "",
+      "idType": "originid"
+    }
+  },
+  "headers": {
+    "content-type": "application/json",
+    "accept": "multipart/mixed;deferSpec=20220824,application/graphql-response+json,application/json",
+    "apollographql-client-version": "15.6.1",
+    "accept-language": "en-US,en;q=0.9",
+    "x-apollo-operation-id": "4253f896c39fef877b22e45929c887bf48d34134d476f345175c1c2b7c4dbf70",
+    "x-apollo-operation-type": "query",
+    "user-agent": "wsj-mobile-ios 15.6.1 / iOS 26.5.2",
+    "apollographql-client-name": "wsj-mobile-ios",
+    "x-app-version": "ios 15.6.1",
+    "x-apollo-operation-name": "ArticleContent"
+  },
+  "captured_app_version": "ios 15.6.1",
+  "notes": "Non-secret ArticleContent request shape from WSJ iOS app traffic observed 2026-08-06. Do not add Authorization or Cookie. Runtime injects WSJ_DJ_AUTHORIZATION."
+}
