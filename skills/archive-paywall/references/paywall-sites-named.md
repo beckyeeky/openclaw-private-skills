@@ -1,0 +1,361 @@
+# 已知付费墙媒体站点清单
+
+来源: bypass-paywalls-clean (magnolia1234) 镜像 csns1/bypass-paywalls-chrome-clean-magnolia1234, 2026-08-01 抓取
+
+- **360Dx**: 360dx.com
+- **ABC.es**: abc.es
+- **ARA**: ara.cat, arabalears.cat
+- **Advance Local**: al.com, cleveland.com, lehighvalleylive.com, masslive.com, mlive.com, nj.com, oregonlive.com, pennlive.com, silive.com, syracuse.com
+- **Adweek (free articles only)**: adweek.com
+- **Aftonbladet**: aftonbladet.se
+- **Allgäuer Zeitung**: allgaeuer-zeitung.de
+- **Alma Talent (Finland)**: arvopaperi.fi, iltalehti.fi, kauppalehti.fi, marmai.fi, mediuutiset.fi, mikrobitti.fi, talouselama.fi, tekniikkatalous.fi, tivi.fi, uusisuomi.fi
+- **Alternatives Economiques**: alternatives-economiques.fr
+- **American Affairs**: americanaffairsjournal.org
+- **American Banker**: americanbanker.com
+- **Amp-access**: cdn.ampproject.org
+- **Apollo Magazine**: apollo-magazine.com
+- **Artnet**: artnet.com
+- **Asia Times**: asiatimes.com
+- **Atavist Magazine**: atavist.com
+- **Atlantico.fr**: atlantico.fr
+- **Augsburger Allgemeine**: augsburger-allgemeine.de
+- **Australia News Corp**: adelaidenow.com.au, cairnspost.com.au, codesports.com.au, couriermail.com.au, dailytelegraph.com.au, geelongadvertiser.com.au, goldcoastbulletin.com.au, heraldsun.com.au, ntnews.com.au, theaustralian.com.au, thechronicle.com.au, themercury.com.au, townsvillebulletin.com.au, weeklytimesnow.com.au
+- **Australian Community Media (daily)**: bendigoadvertiser.com.au, bordermail.com.au, canberratimes.com.au, centralwesterndaily.com.au, dailyadvertiser.com.au, dailyliberal.com.au, examiner.com.au, illawarramercury.com.au, newcastleherald.com.au, northerndailyleader.com.au, standard.net.au, theadvocate.com.au, thecourier.com.au, westernadvocate.com.au
+- **Automobilwoche**: automobilwoche.de
+- **AzureEdge**: loader-cdn.azureedge.net
+- **BBC History Extra**: historyextra.com
+- **Badische Neueste Nachrichten**: bnn.de
+- **Barron's**: barrons.com
+- **Belfast Telegraph (setCookie opt-in)**: belfasttelegraph.co.uk
+- **Berliner Zeitung**: berliner-zeitung.de
+- **Berlingske**: berlingske.dk
+- **Bloomberg**: bloomberg.com
+- **Bloomberg Quint**: bloombergquint.com
+- **BlueConic**: blueconic.net
+- **Brisbane Times**: brisbanetimes.com.au
+- **Business Insider**: businessinsider.com
+- **Business Standard**: business-standard.com
+- **Causeur**: causeur.fr
+- **Challenges**: challenges.fr
+- **Charlie Hebdo**: charliehebdo.fr
+- **Chemical & Engineering News**: cen.acs.org
+- **Chronicle of Higher Education**: chronicle.com
+- **Cicero.de**: cicero.de
+- **Clarín**: clarin.com
+- **Commentary Magazine**: commentary.org
+- **CommonWealth Magazine Taiwan (free articles only)**: cw.com.tw
+- **Condé Nast magazines**: bonappetit.com, gq.com, newyorker.com, vanityfair.com, vogue.com, wired.com
+- **Connaissance des Arts**: connaissancedesarts.com
+- **Correio da Manhã**: cmjornal.pt
+- **Corriere della Sera**: corriere.it
+- **Corriere dello Sport**: corrieredellosport.it
+- **Crain Communications**: adage.com, autonews.com, chicagobusiness.com, crainscleveland.com, crainsdetroit.com, crainsnewyork.com, modernhealthcare.com
+- **Cxense**: cxense.com
+- **Dagens Industri**: di.se
+- **Dagens Nyheter (free articles only)**: dn.se
+- **Daily Nation**: nation.africa
+- **Dark Reading**: darkreading.com
+- **De Tijd**: tijd.be
+- **DeMorgen**: demorgen.be
+- **Deutsche Wirtschafts Nachrichten**: deutsche-wirtschafts-nachrichten.de
+- **Diario Financiero**: df.cl
+- **Die Rheinpfalz**: rheinpfalz.de
+- **Die Zeit**: zeit.de
+- **Digiday**: digiday.com
+- **Discover Magazine**: discovermagazine.com
+- **Domani**: editorialedomani.it
+- **ESPN USA (news only)**: espn.com
+- **EUobserver**: euobserver.com
+- **Eastwest.eu**: eastwest.eu
+- **El Confidencial**: elconfidencial.com
+- **El Diario.es**: eldiario.es
+- **El Español**: elespanol.com
+- **El Espectador**: elespectador.com
+- **El Mercurio (+ regional/opt-in to custom sites)**: elmercurio.com
+- **El Mundo**: elmundo.es
+- **El País**: elpais.com
+- **El Periódico (de Catalunya)**: elperiodico.com
+- **El Tiempo**: eltiempo.com
+- **Elle.fr**: elle.fr
+- **Encyclopedia Britannica**: britannica.com
+- **Ensighten**: ensighten.com
+- **Entrepreneur**: entrepreneur.com
+- **Esprit**: esprit.presse.fr
+- **Eureka Report**: eurekareport.com.au
+- **Evolok**: evolok.net
+- **Exame**: exame.com
+- **Expansión**: expansion.com
+- **Finance.si**: finance.si
+- **Financial News (London)**: fnlondon.com
+- **Financial Times (not Chinese)**: ft.com
+- **Financieele Dagblad (fd.nl)**: fd.nl
+- **First Things**: firstthings.com
+- **Folha de S. Paulo**: folha.uol.com.br, blogfolha.uol.com.br
+- **Follow the Money (ftm.nl)**: ftm.nl
+- **Forbes**: forbes.com
+- **Foreign Affairs**: foreignaffairs.com
+- **Foreign Policy**: foreignpolicy.com
+- **Fortune**: fortune.com
+- **Franc-Tireur**: franc-tireur.fr
+- **Frankfurter Allgemeine Zeitung**: faz.net
+- **Freie Presse**: freiepresse.de
+- **Funke Mediengruppe**: abendblatt.de, braunschweiger-zeitung.de, morgenpost.de, nrz.de, otz.de, thueringer-allgemeine.de, tlz.de, waz.de, wp.de, wr.de
+- **GElocal.it**: gelocal.it
+- **Gannett Group (local USA Today)**: azcentral.com, cincinnati.com, courier-journal.com, detroitnews.com, freep.com, indystar.com, jsonline.com, northjersey.com, statesman.com, tennessean.com
+- **GenomeWeb**: genomeweb.com
+- **Glassdoor**: glassdoor.com
+- **Globes**: globes.co.il
+- **GoogleTagManager**: googletagmanager.com
+- **Griffith Review**: griffithreview.com
+- **Groene Amsterdammer**: groene.nl
+- **Groupe EBRA**: bienpublic.com, dna.fr, estrepublicain.fr, lalsace.fr, ledauphine.com, lejsl.com, leprogres.fr, republicain-lorrain.fr, vosgesmatin.fr
+- **Groupe La Dépêche**: centrepresseaveyron.fr, ladepeche.fr, lindependant.fr, midi-olympique.fr, midilibre.fr, nrpyrenees.fr, petitbleu.fr
+- **Groupe Nice-Matin**: monacomatin.mc, nicematin.com, varmatin.com
+- **Groupe Rossel**: aisnenouvelle.fr, courrier-picard.fr, lardennais.fr, lavoixdunord.fr, lesoir.be, lest-eclair.fr, liberation-champagne.fr, lunion.fr, nordeclair.fr, nordlittoral.fr, paris-normandie.fr, sudinfo.be
+- **Groupe Sud Ouest**: sudouest.fr, charentelibre.fr, larepubliquedespyrenees.fr
+- **Grupo Abril**: abril.com.br
+- **Grupo El Comercio**: diariocorreo.pe, elcomercio.pe, gestion.pe
+- **Grupo Prensa Ibérica**: diariodemallorca.es, eldia.es, epe.es, farodevigo.es, informacion.es, laprovincia.es, levante-emv.com, lne.es, mallorcazeitung.es
+- **Grupo Vocento**: diariosur.es, diariovasco.com, elcomercio.es, elcorreo.com, eldiariomontanes.es, elnortedecastilla.es, hoy.es, ideal.es, larioja.com, lasprovincias.es, laverdad.es, lavozdigital.es
+- **Haaretz**: haaretz.co.il
+- **Haaretz English**: haaretz.com
+- **Handelsblatt (non-premium articles only)**: handelsblatt.com
+- **Harper's Magazine**: harpers.org
+- **Harvard Business Review**: hbr.org
+- **Harvard Business Review China**: hbrchina.org
+- **Hearst Communications (newspapers)**: expressnews.com, houstonchronicle.com, sfchronicle.com
+- **Hearst Communications magazines**: bicycling.com, cosmopolitan.com, countryliving.com, elle.com, esquire.com, goodhousekeeping.com, hollywoodreporter.com, housebeautiful.com, menshealth.com, popularmechanics.com, prevention.com, roadandtrack.com, runnersworld.com, townandcountrymag.com, womenshealthmag.com
+- **Hindustan Times**: hindustantimes.com
+- **Honolulu Star-Advertiser**: staradvertiser.com
+- **Huffingtonpost.it**: huffingtonpost.it
+- **Humo.be**: humo.be
+- **Il Fatto Quotidiano**: ilfattoquotidiano.it
+- **Il Foglio**: ilfoglio.it
+- **Il Messaggero (+ regional)**: corriereadriatico.it, ilgazzettino.it, ilmattino.it, ilmessaggero.it, quotidianodipuglia.it
+- **Il Secolo XIX**: ilsecoloxix.it
+- **Inc.com**: inc.com
+- **Inc42**: inc42.com
+- **India Today**: indiatoday.in
+- **Inkl**: inkl.com
+- **Intelligent Investor**: intelligentinvestor.com.au
+- **Internazionale.it**: internazionale.it
+- **Investors' Chronicle**: investorschronicle.co.uk
+- **Irish Independent (setCookie opt-in)**: independent.ie
+- **Italia Oggi**: italiaoggi.it
+- **Italian.tech**: italian.tech
+- **Knack.be**: knack.be
+- **Krautreporter.de**: krautreporter.de
+- **Kurier.at**: kurier.at
+- **Kölner Stadt-Anzeiger**: ksta.de
+- **Kölnische Rundschau**: rundschau-online.de
+- **L'Express**: lexpress.fr
+- **L'Obs**: nouvelobs.com
+- **L'Oeil de la Photographie**: loeildelaphotographie.com
+- **L'Opinion**: lopinion.fr
+- **L'Usine Nouvelle**: usinenouvelle.com
+- **L'Écho**: lecho.be
+- **L'Équipe**: lequipe.fr
+- **La Croix**: la-croix.com
+- **La Libre.be**: lalibre.be
+- **La Montagne**: lamontagne.fr
+- **La Nación**: lanacion.com.ar
+- **La Nouvelle République du Centre-Ouest**: lanouvellerepublique.fr
+- **La Nuova Sardegna**: lanuovasardegna.it
+- **La Repubblica**: repubblica.it
+- **La Segunda**: lasegunda.com
+- **La Stampa**: lastampa.it
+- **La Tercera**: latercera.com
+- **La Tribune**: latribune.fr
+- **La Vanguardia**: lavanguardia.com
+- **La Vie**: lavie.fr
+- **Law.com (free articles only)**: law.com
+- **Law360 (free articles only)**: law360.com
+- **Le Devoir**: ledevoir.com
+- **Le Journal du Dimanche**: lejdd.fr
+- **Le Journal du Net**: journaldunet.com
+- **Le Nouvel Economiste**: lenouveleconomiste.fr
+- **Le Parisien**: leparisien.fr
+- **Le Scienze**: lescienze.it
+- **Le Télégramme**: letelegramme.fr
+- **Le Vif.be**: levif.be
+- **Lee Enterprises Group**: buffalonews.com, journalnow.com, richmond.com, tucson.com, tulsaworld.com
+- **Les Inrockuptibles**: lesinrocks.com
+- **Les Échos**: lesechos.fr
+- **LimesOnline**: limesonline.com
+- **Live Law**: livelaw.in
+- **LiveMint**: livemint.com
+- **Loeb Classical Library**: loebclassics.com
+- **London Review of Books**: lrb.co.uk
+- **Los Angeles Business Journal**: labusinessjournal.com
+- **Los Angeles Times**: latimes.com
+- **MIT Sloan Management Review**: sloanreview.mit.edu
+- **MIT Technology Review**: technologyreview.com
+- **Madsack Mediengruppe**: haz.de, kn-online.de, ln-online.de, lvz.de, maz-online.de, neuepresse.de, ostsee-zeitung.de, rnd.de
+- **Mainichi Shimbun**: mainichi.jp
+- **Marca**: marca.com
+- **Marianne.net**: marianne.net
+- **MarketWatch**: marketwatch.com
+- **MatherAnalytics**: matheranalytics.com
+- **McClatchy Group**: bnd.com, charlotteobserver.com, fresnobee.com, kansas.com, kansascity.com, kentucky.com, miamiherald.com, newsobserver.com, sacbee.com, star-telegram.com, thestate.com, tri-cityherald.com
+- **MediaNama**: medianama.com
+- **MediaNews Group**: denverpost.com, eastbaytimes.com, mercurynews.com, ocregister.com, pe.com, twincities.com
+- **Mediahuis België**: gva.be, hbvl.be, nieuwsblad.be
+- **Mediahuis Nederland Regional**: gooieneemlander.nl, haarlemsdagblad.nl, ijmuidercourant.nl, leidschdagblad.nl, noordhollandsdagblad.nl
+- **Mediahuis Noord**: dvhn.nl, lc.nl
+- **Medium (free articles only)**: medium.com
+- **Medium custom domains (free articles only; opt-in to custom sites)**: betterprogramming.pub, towardsdatascience.com
+- **Mexico News Daily**: mexiconewsdaily.com
+- **Mid-Day**: mid-day.com
+- **Mitteldeutsche Zeitung**: mz.de
+- **Mountain View Voice**: mv-voice.com
+- **Münstersche Zeitung**: muensterschezeitung.de
+- **NHST Media Group**: intrafish.com, rechargenews.com, tradewindsnews.com, upstreamonline.com
+- **NRC Handelsblad**: nrc.nl
+- **National Geographic USA**: nationalgeographic.com
+- **National Review**: nationalreview.com
+- **Nautilus**: nautil.us
+- **Neue Osnabrücker Zeitung**: noz.de
+- **Neue Zürcher Zeitung (+ regional/opt-in to custom sites)**: nzz.ch
+- **New Left Review**: newleftreview.org
+- **New York Magazine (+ Curbed, Grub Street, The Cut & Vulture)**: curbed.com, grubstreet.com, nymag.com, thecut.com, vulture.com
+- **New Zealand Herald**: nzherald.co.nz
+- **NewsMemory**: newsmemory.com
+- **Newsday**: newsday.com
+- **Newsweek**: newsweek.com
+- **Nikkei Asian Review**: asia.nikkei.com
+- **Nordwest Zeitung**: nwzonline.de
+- **NyTeknik**: nyteknik.se
+- **Nürnberger Nachrichten**: nn.de
+- **O Estado de S. Paulo**: estadao.com.br
+- **O Globo (& Valor Econômico; cached articles only)**: globo.com
+- **Observador.pt**: observador.pt
+- **OneCount**: onecount.net
+- **Outlook India**: outlookindia.com
+- **Outside magazines**: backpacker.com, betamtb.com, betternutrition.com, cleaneatingmag.com, climbing.com, cyclingtips.com, gymclimber.com, outsideonline.com, oxygenmag.com, pelotonmagazine.com, podiumrunner.com, rockandice.com, skimag.com, trailrunnermag.com, triathlete.com, vegetariantimes.com, velonews.com, womensrunning.com, yogajournal.com
+- **Palo Alto Online**: paloaltoonline.com
+- **Paris Match**: parismatch.com
+- **Parool**: parool.nl
+- **Pelcro**: pelcro.com
+- **Penske Media Corporation**: billboard.com, rollingstone.com, sportico.com, variety.com, wwd.com
+- **Philosophy Now**: philosophynow.org
+- **Piano.io**: piano.io
+- **Piqd.de**: piqd.de
+- **Pittsburgh Post Gazette**: post-gazette.com
+- **Política Exterior**: politicaexterior.com
+- **Poool.fr**: poool.fr
+- **Postmedia Network**: calgaryherald.com, financialpost.com, nationalpost.com, theprovince.com, torontosun.com, vancouversun.com
+- **Precision Oncology News**: precisiononcologynews.com
+- **Prospect Magazine**: prospectmagazine.co.uk
+- **Puck.news**: puck.news
+- **Qiota**: qiota.com
+- **Quartz**: qz.com
+- **Quora**: quora.com
+- **Quotidiano.net (+ regional)**: ilgiorno.it, ilrestodelcarlino.it, iltelegrafolivorno.it, lanazione.it, quotidiano.net
+- **Reuters**: reuters.com
+- **Rhein-Zeitung**: rhein-zeitung.de
+- **RugbyPass**: rugbypass.com
+- **S&P Global**: spglobal.com
+- **SOFREP**: sofrep.com
+- **San Diego Union Tribune**: sandiegouniontribune.com
+- **Sanoma Media Finland (+ regional/opt-in to custom sites)**: aamulehti.fi, hs.fi
+- **Schleswig-Holsteinischer Zeitungsverlag**: shz.de
+- **Schweriner Volkszeitung**: svz.de
+- **Science & Vie**: science-et-vie.com
+- **Science (free articles only)**: science.org
+- **Sciences et Avenir**: sciencesetavenir.fr
+- **Scientific American (free articles only)**: scientificamerican.com
+- **Seeking Alpha**: seekingalpha.com
+- **Slate**: slate.com
+- **SlideShare**: slideshare.net
+- **South China Morning Post**: scmp.com
+- **Southern Weekly**: infzm.com
+- **Sports Illustrated**: si.com
+- **Star Tribune**: startribune.com
+- **Statista**: statista.com
+- **Stock News**: stocknews.com
+- **Stratfor**: stratfor.com
+- **Study.com (no videos)**: study.com
+- **Tampa Bay Times**: tampabay.com
+- **Tech in Asia**: techinasia.com
+- **Telegraaf**: telegraaf.nl
+- **The (New Orleans) Advocate**: nola.com, theadvocate.com
+- **The Age**: theage.com.au
+- **The American Interest**: the-american-interest.com
+- **The Art Newspaper**: theartnewspaper.com
+- **The Athletic**: theathletic.com, theathletic.co.uk
+- **The Atlanta Journal-Constitution**: ajc.com
+- **The Atlantic**: theatlantic.com
+- **The Australian Financial Review**: afr.com
+- **The Boston Globe**: bostonglobe.com
+- **The Business Journals**: bizjournals.com
+- **The Business of Fashion**: businessoffashion.com
+- **The Christian Science Monitor**: csmonitor.com
+- **The Daily Beast**: thedailybeast.com
+- **The Daily Wire**: dailywire.com
+- **The Dallas Morning News**: dallasnews.com
+- **The Diplomat**: thediplomat.com
+- **The Economic Times (ET Prime)**: economictimes.com, economictimes.indiatimes.com
+- **The Economist**: economist.com
+- **The Financial Express**: financialexpress.com
+- **The Globe and Mail**: theglobeandmail.com
+- **The Hill Times**: hilltimes.com
+- **The Hindu**: thehindu.com
+- **The Hindu BusinessLine**: thehindubusinessline.com
+- **The Independent**: independent.co.uk
+- **The Indian Express**: indianexpress.com
+- **The Intercept**: theintercept.com
+- **The Jerusalem Post**: jpost.com
+- **The Lawyer's Daily**: thelawyersdaily.ca
+- **The Marker**: themarker.com
+- **The Market.ch**: themarket.ch
+- **The Nation**: thenation.com
+- **The New Atlantis**: thenewatlantis.com
+- **The New Republic**: newrepublic.com
+- **The New Statesman**: newstatesman.com
+- **The New York Review of Books**: nybooks.com
+- **The New York Times**: nytimes.com
+- **The Philadelphia Inquirer**: inquirer.com
+- **The Point Magazine**: thepointmag.com
+- **The Saturday Paper**: thesaturdaypaper.com.au
+- **The Seattle Times**: seattletimes.com
+- **The Spectator (UK)**: spectator.co.uk
+- **The Spectator Australia**: spectator.com.au
+- **The Spectator World**: spectatorworld.com
+- **The Star Malaysia**: thestar.com.my
+- **The Sydney Morning Herald**: smh.com.au
+- **The Telegraph**: telegraph.co.uk
+- **The Times (UK)**: thetimes.co.uk
+- **The Times Literary Supplement**: the-tls.co.uk
+- **The Toronto Star (+ local TorStar sites)**: niagarafallsreview.ca, stcatharinesstandard.ca, thepeterboroughexaminer.com, therecord.com, thespec.com, thestar.com, wellandtribune.ca
+- **The Wall Street Journal**: wsj.com
+- **The Washington Post**: washingtonpost.com
+- **The West Australian (+ regional/opt-in to custom sites)**: thewest.com.au
+- **The Wrap**: thewrap.com
+- **Time Magazine**: time.com
+- **Times Higher Education**: timeshighereducation.com
+- **Times of India**: timesofindia.com, timesofindia.indiatimes.com
+- **TinyPass**: tinypass.com
+- **TribDss**: tribdss.com
+- **Tribune Publishing Company**: baltimoresun.com, capitalgazette.com, chicagotribune.com, courant.com, dailypress.com, mcall.com, nydailynews.com, orlandosentinel.com, pilotonline.com, sun-sentinel.com
+- **Trouw**: trouw.nl
+- **Télérama**: telerama.fr
+- **USA Today**: usatoday.com
+- **UnHerd**: unherd.com
+- **Valeurs Actuelles**: valeursactuelles.com
+- **VentureBeat**: venturebeat.com
+- **Vogue Business**: voguebusiness.com
+- **Volkskrant**: volkskrant.nl
+- **Volksstimme**: volksstimme.de
+- **Vrij Nederland**: vn.nl
+- **WAtoday**: watoday.com.au
+- **Weborama.fr**: weborama.fr
+- **Westdeutsche Zeitung**: wz.de
+- **Westfalen-Blatt**: westfalen-blatt.de
+- **Westfälische Nachrichten**: wn.de
+- **Winnipeg Free Press**: winnipegfreepress.com
+- **World Politics Review**: worldpoliticsreview.com
+- **Zephr**: zephr.com
+- **eNotes**: enotes.com
+- **iPolitics.ca**: ipolitics.ca
+- **Ámbito**: ambito.com
