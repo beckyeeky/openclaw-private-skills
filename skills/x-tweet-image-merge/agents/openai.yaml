@@ -1,0 +1,4 @@
+interface:
+  display_name: "X Tweet Image Merge"
+  short_description: "Merge and download images from X posts"
+  default_prompt: "Use $x-tweet-image-merge to provide an X userscript that combines a post images horizontally."

@@ -41,6 +41,7 @@ dependencies or configure external accounts.
 | [`trivia-quiz`](skills/trivia-quiz/) | Run an inline-button trivia game using deterministic question data. |
 | [`wechat-article-fetch`](skills/wechat-article-fetch/) | Fetch web articles into Markdown and optionally publish them to Telegra.ph. |
 | [`wsj-article-reader`](skills/wsj-article-reader/) | Retrieve and archive WSJ articles the user is already authorized to read, using a local private token. |
+| [`x-tweet-image-merge`](skills/x-tweet-image-merge/) | Combine all images in an X/Twitter post horizontally and download one PNG. |
 
 ## Repository layout
 
