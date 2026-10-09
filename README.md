@@ -34,10 +34,13 @@ dependencies or configure external accounts.
 
 | Skill | Purpose |
 | --- | --- |
+| [`archive-paywall`](skills/archive-paywall/) | Fetch paywalled foreign-language articles via archive.is and save Markdown. |
+| [`bilibili-hub`](skills/bilibili-hub/) | Read and write Bilibili data with cookie-based authentication. |
 | [`business-reading-curator`](skills/business-reading-curator/) | Curate source-verified English business reading packs with durable history and deduplication. |
 | [`codex-image`](skills/codex-image/) | Generate images through Codex and send Telegram albums. |
 | [`loon-plugin`](skills/loon-plugin/) | Build, debug, package, and publish Loon `.plugin` / `.lpx` files. |
 | [`pixiv-novel-extractor`](skills/pixiv-novel-extractor/) | Extract public and authenticated Pixiv novels into Markdown or JSON. |
+| [`text-redaction`](skills/text-redaction/) | Redact emails and articles: keep the topic and reasoning, remove names and companies. |
 | [`trivia-quiz`](skills/trivia-quiz/) | Run an inline-button trivia game using deterministic question data. |
 | [`wechat-article-fetch`](skills/wechat-article-fetch/) | Fetch web articles into Markdown and optionally publish them to Telegra.ph. |
 | [`wsj-article-reader`](skills/wsj-article-reader/) | Retrieve and archive WSJ articles the user is already authorized to read, using a local private token. |
