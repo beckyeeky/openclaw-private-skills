@@ -15,6 +15,7 @@ import mimetypes
 import os
 import re
 import time
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,6 +77,14 @@ class R2Config:
         values["key_prefix"] = os.environ.get("CF_R2_KEY_PREFIX", "wechat").strip("/") or "wechat"
         values["public_base_url"] = values["public_base_url"].rstrip("/")
         return cls(**values)
+
+    def __post_init__(self):
+        public = urlparse(self.public_base_url)
+        if (public.scheme != "https" or not public.hostname or public.username or
+                public.password or public.query or public.fragment or
+                public.hostname.endswith("r2.cloudflarestorage.com")):
+            raise ValueError("CF_R2_PUBLIC_BASE_URL must be a public HTTPS URL without credentials/query; not an S3 endpoint")
+        self.public_base_url = self.public_base_url.rstrip("/")
 
     @property
     def endpoint(self) -> str:
@@ -197,6 +206,7 @@ def _image_extension(content_type: str, payload: bytes, source_url: str) -> str:
         "image/png": ".png",
         "image/gif": ".gif",
         "image/webp": ".webp",
+        "image/avif": ".avif",
         "image/bmp": ".bmp",
         "image/tiff": ".tif",
         "image/svg+xml": ".svg",
@@ -210,13 +220,21 @@ def _image_extension(content_type: str, payload: bytes, source_url: str) -> str:
 
 
 def _looks_like_image(content_type: str, payload: bytes) -> bool:
-    lowered = (content_type or "").split(";", 1)[0].strip().lower()
-    if lowered.startswith("image/"):
+    # Headers alone are not evidence: CDNs sometimes return HTML with image/*.
+    if any(payload.startswith(prefix) for prefix in
+           (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a", b"BM", b"II*\x00", b"MM\x00*")):
         return True
-    return any(
-        payload.startswith(prefix)
-        for prefix in (b"\xff\xd8\xff", b"\x89PNG", b"GIF8", b"RIFF", b"BM", b"II*\x00", b"MM\x00*")
-    )
+    if payload.startswith(b"RIFF") and payload[8:12] == b"WEBP":
+        return True
+    if payload[4:8] == b"ftyp" and payload[8:12] in {b"avif", b"avis"}:
+        return True
+    if content_type.split(";", 1)[0].strip().lower() == "image/svg+xml":
+        import xml.etree.ElementTree as ET
+        try:
+            return ET.fromstring(payload).tag in {"svg", "{http://www.w3.org/2000/svg}svg"}
+        except ET.ParseError:
+            pass
+    return False
 
 
 def _is_wechat_image(url: str) -> bool:
@@ -369,9 +387,14 @@ def rewrite_images(
                     extension = _image_extension(content_type, payload, source_url)
                     filename = "%03d-%s%s" % (sequence, url_hash, extension)
                     final_path = asset_dir / filename
-                    part_path = asset_dir / (filename + ".part")
-                    part_path.write_bytes(payload)
-                    os.replace(str(part_path), str(final_path))
+                    fd, temporary = tempfile.mkstemp(prefix=filename + ".", suffix=".part", dir=asset_dir)
+                    try:
+                        with os.fdopen(fd, "wb") as stream:
+                            stream.write(payload)
+                        os.replace(temporary, final_path)
+                    finally:
+                        if os.path.exists(temporary):
+                            os.unlink(temporary)
                     existing = final_path
                 record.local_path = existing
                 record.local_ref = (Path("assets") / slug / existing.name).as_posix()

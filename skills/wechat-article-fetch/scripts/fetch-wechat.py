@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""抓取微信公众号文章 → Markdown + Telegraph
-用法: python3 fetch-wechat.py <mp.weixin.qq.com/s/...>
-"""
+"""Fetch WeChat articles locally; external publication requires explicit opt-in."""
 
 import argparse
 import subprocess, json, re, os, sys, urllib.request, tempfile
-from datetime import datetime
+from datetime import datetime, timezone
+import hashlib
+from archive_core import (DEFUDDLE_VERSION, validate_article, output_directory,
+                          archive_id, atomic_write, frontmatter, telegraph_token)
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -15,7 +16,7 @@ from image_assets import ImageRewriteResult, R2Client, R2Config, make_slug, rewr
 def fetch(url: str) -> dict:
     """curl + defuddle 抓取微信文章"""
     parsed = urlparse(url)
-    if parsed.netloc != "mp.weixin.qq.com" or not parsed.path.startswith("/s/"):
+    if parsed.scheme not in {"https", "http"} or parsed.netloc != "mp.weixin.qq.com" or not (parsed.path.startswith("/s/") or parsed.path == "/s"):
         raise ValueError(f"不是有效的微信文章链接: {url}")
 
     ua = ("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
@@ -23,55 +24,62 @@ def fetch(url: str) -> dict:
           "MicroMessenger/8.0.34(0x16082222) NetType/WIFI Language/zh_CN")
 
     print("🌐 抓取中...", file=sys.stderr)
-    tmp_html = tempfile.mktemp(suffix=".html")
-    subprocess.run(["curl", "-sL", "--fail", "--show-error",
-        "--connect-timeout", "15", "--max-time", "30",
-        "-H", f"User-Agent: {ua}",
-        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "-H", "Accept-Language: zh-CN,zh;q=0.9",
-        url, "-o", tmp_html], check=True)
+    with tempfile.TemporaryDirectory(prefix="wechat-fetch-") as temp:
+        tmp_html = str(Path(temp) / "source.html")
+        subprocess.run(["curl", "-sL", "--fail", "--show-error",
+            "--proto", "=http,https", "--proto-redir", "=http,https",
+            "--connect-timeout", "15", "--max-time", "30",
+            "-H", f"User-Agent: {ua}",
+            "-H", "Accept-Language: zh-CN,zh;q=0.9",
+            url, "-o", tmp_html], check=True)
+        raw = Path(tmp_html).read_bytes()
+        r = subprocess.run(["npx", "--yes", f"defuddle@{DEFUDDLE_VERSION}", "parse", tmp_html, "-m", "-j"],
+                           capture_output=True, text=True, check=True, timeout=120)
+        data = json.loads(r.stdout)
+        validate_article(raw, data)
+        data["_raw_html"] = raw
+        data["_fetched_at"] = datetime.now(timezone.utc).isoformat()
+        return data
 
-    print("📝 解析中...", file=sys.stderr)
-    r = subprocess.run(["npx", "--no-install", "defuddle", "parse", tmp_html, "-m", "-j"],
-                       capture_output=True, text=True, check=True)
-    return json.loads(r.stdout)
 
-
-def save_markdown(url: str, data: dict, image_mode: str = "local") -> tuple[str, str, ImageRewriteResult]:
-    """保存带本地图片相对路径的 Markdown，并返回发布版正文。"""
-    out_dir = Path(os.path.expanduser("~/.hermes/wechat-articles"))
+def save_markdown(url: str, data: dict, image_mode: str = "local", output_dir=None) -> tuple[str, str, ImageRewriteResult]:
+    """Commit a local snapshot BEFORE optional R2 operations."""
+    if image_mode not in {"local", "r2"}:
+        raise ValueError("Unknown image mode")
+    raw = data.get("_raw_html")
+    if not isinstance(raw, bytes):
+        raise ValueError("Raw HTML bytes required for a durable archive")
+    validate_article(raw, data)
+    out_dir = output_directory(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    title = data.get("title", "untitled")
-    slug = make_slug(title)
-    fpath = out_dir / f"{slug}.md"
+    slug = archive_id(url, data["title"])
+    revision = hashlib.sha256(raw).hexdigest()[:16]
+    fpath = out_dir / f"{slug}-{revision}.md"
+    atomic_write(fpath.with_suffix(".html"), raw)
     source_content = data.get("content", "") or ""
-
-    r2_client = None
+    image_result = rewrite_images(source_content, out_dir, slug, url, mode="local")
+    md = frontmatter(url, data) + f"# {data['title']}\n\n" + image_result.local_markdown + "\n"
+    atomic_write(fpath, md)
     if image_mode == "r2":
-        r2_client = R2Client(R2Config.from_env())
-
-    image_result = rewrite_images(
-        source_content,
-        out_dir,
-        slug,
-        url,
-        mode=image_mode,
-        r2_client=r2_client,
-    )
-    md = f"""# {data.get('title', '')}
-
-**作者**: {data.get('author', '') or '-'}
-**来源**: 微信公众号
-**链接**: {url}
-**抓取时间**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-**字数**: {data.get('wordCount', '')}
-**图片**: 本地归档（{image_result.downloaded}/{image_result.discovered}）
-
----
-
-{image_result.local_markdown}
-"""
-    fpath.write_text(md, encoding="utf-8")
+        try:
+            client = R2Client(R2Config.from_env())
+            # Upload only already-saved assets, never retry a failed download here.
+            for record in image_result.records:
+                if record.local_path is None:
+                    continue
+                key = f"{client.config.key_prefix}/{slug}/{record.local_path.name}"
+                try:
+                    client.upload_file(record.local_path, key)
+                    record.public_url = client.public_url(key)
+                except Exception as exc:
+                    record.error = f"R2 upload failed ({type(exc).__name__})"
+            from image_assets import MARKDOWN_IMAGE_RE, _extract_url
+            mapping = {r.source_url: r.public_url for r in image_result.records if r.public_url}
+            image_result.publication_markdown = MARKDOWN_IMAGE_RE.sub(
+                lambda m: f"![{m.group(1)}]({mapping[_extract_url(m.group(2))]})"
+                if _extract_url(m.group(2)) in mapping else m.group(0), source_content)
+        except ValueError as exc:
+            image_result.r2_error = str(exc)
     return str(fpath), image_result.publication_markdown, image_result
 
 
@@ -129,7 +137,7 @@ def publish_telegraph(title: str, author: str, author_url: str, content_md: str,
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST"
     )
-    result = json.loads(urllib.request.urlopen(req).read())
+    result = json.loads(urllib.request.urlopen(req, timeout=30).read())
     if result.get("ok"):
         return result["result"]["url"]
     raise RuntimeError(f"Telegraph 发布失败: {result.get('error')}")
@@ -144,63 +152,39 @@ def build_parser() -> argparse.ArgumentParser:
         default="local",
         help="图片策略：local（默认，保存到 Markdown 同目录）或 r2（本地保存后上传 R2）",
     )
-    parser.add_argument(
-        "--no-telegraph",
-        action="store_true",
-        help="不尝试发布 Telegraph",
-    )
+    publication = parser.add_mutually_exclusive_group()
+    publication.add_argument("--publish", action="store_true", help="Explicitly publish this article to Telegraph")
+    publication.add_argument("--no-telegraph", action="store_true", help="Compatibility alias for the local-only default")
+    parser.add_argument("--output-dir", help="Override WECHAT_ARTICLE_OUTPUT_DIR / XDG data directory")
     return parser
 
 
-if __name__ == "__main__":
-    args = build_parser().parse_args()
-    wx_url = args.url
-
-    # Step 1-2: 抓取 + 解析
-    data = fetch(wx_url)
-
-    # Step 3: 保存到本地；默认永远保存本地图片
+def main(argv=None):
+    args = build_parser().parse_args(argv)
     try:
-        fpath, publication_content, image_result = save_markdown(wx_url, data, args.images)
-    except ValueError as exc:
-        print(f"❌ {exc}", file=sys.stderr)
-        sys.exit(2)
-
-    title = data.get("title", "未命名文章")
-    print(f"\n✅ {title}")
-    print(f"📁 {fpath}")
-    print(
-        f"🖼️  图片：发现 {image_result.discovered}，本地保存 {image_result.downloaded}，"
-        f"R2 上传 {image_result.uploaded}，失败 {image_result.failed}"
-    )
-    if image_result.failed:
-        for record in image_result.records:
-            if record.error:
-                print(f"   ⚠️ {record.source_url[:100]}: {record.error}", file=sys.stderr)
-    if data.get("author"):
-        print(f"✍️  {data['author']}")
-    if data.get("wordCount"):
-        print(f"🔢 {data['wordCount']} 字")
-
-    # Step 4: 发布 Telegraph（可选）。R2 模式使用 R2 公共 URL，local 模式
-    # 保持原始 URL 以兼容当前 Telegraph 发布逻辑。
-    token_path = os.path.expanduser("~/.hermes/telegraph_token")
-    if args.no_telegraph:
-        print("⏭️  已跳过 Telegraph")
-    elif os.path.exists(token_path):
-        print("📤 发布到 Telegraph...", file=sys.stderr)
-        with open(token_path) as f:
-            token = f.read().strip()
+        data = fetch(args.url)
+        fpath, content, images = save_markdown(args.url, data, args.images, args.output_dir)
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        print(f"Archive failed: {type(exc).__name__}: " + (str(exc) if isinstance(exc, ValueError) else "fetch/parse/storage operation failed"), file=sys.stderr)
+        return 2
+    print(f"Local archive: {fpath}")
+    print(f"Raw HTML: {Path(fpath).with_suffix('.html')}")
+    print(f"Images: found={images.discovered} saved={images.downloaded} uploaded={images.uploaded} failed={images.failed}")
+    status = 0
+    if images.failed or images.r2_error:
+        print("Warning: partial image archive or R2 failure; local files preserved", file=sys.stderr)
+        if images.r2_error:
+            print(images.r2_error, file=sys.stderr)
+        status = 1
+    if args.publish:
         try:
-            teleg_url = publish_telegraph(
-                title,
-                data.get("author", ""),
-                wx_url,
-                publication_content,
-                token,
-            )
-            print(f"🔗 {teleg_url}")
-        except Exception as e:
-            print(f"⚠️  Telegraph 发布失败: {e}", file=sys.stderr)
-    else:
-        print("💡 提示: 创建 ~/.hermes/telegraph_token 可自动发布到 Telegraph")
+            token = telegraph_token()
+            print("Telegraph: " + publish_telegraph(data["title"], data.get("author", ""), args.url, content, token))
+        except Exception as exc:
+            print(f"Telegraph failed ({type(exc).__name__}); local files preserved", file=sys.stderr)
+            status = 1
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

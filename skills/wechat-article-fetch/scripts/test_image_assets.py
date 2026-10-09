@@ -91,12 +91,13 @@ def main() -> None:
         assert failed.failed == 1
         assert "https://mmbiz.qpic.cn/bad.jpg" in failed.local_markdown
 
-    try:
-        R2Config.from_env()
-    except ValueError as exc:
-        assert "CF_R2_ACCOUNT_ID" in str(exc)
-    else:
-        raise AssertionError("missing R2 environment must be rejected")
+    with patch.dict("os.environ", {}, clear=True):
+        try:
+            R2Config.from_env()
+        except ValueError as exc:
+            assert "CF_R2_ACCOUNT_ID" in str(exc)
+        else:
+            raise AssertionError("missing R2 environment must be rejected")
 
     config = R2Config(
         account_id="a" * 32,

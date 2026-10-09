@@ -1,107 +1,63 @@
-# WeChat Article Fetch
+# WeChat Local Article Archiver
 
-Fetch articles into a durable local Markdown archive, download embedded images with WeChat-compatible headers, and optionally publish image copies to Cloudflare R2 for external Markdown/Telegraph pages.
+A local-only-by-default WeChat archive: original raw HTML, metadata-bearing Markdown and downloaded images. Optional Telegraph publication and R2 public image mirroring are separate, explicit opt-ins. The stable skill name remains `wechat-article-fetch`.
 
-## Features
+## Requirements and usage
 
-- **WeChat articles**: curl with MicroMessenger UA to bypass verification sliders
-- **Local-first image archive**: every remote Markdown image is downloaded beside the article under `assets/<slug>/`
-- **WeChat anti-hotlink handling**: retries with article/WeChat Referer and mobile User-Agent headers
-- **Optional Cloudflare R2 publishing**: upload the already-saved local images using the dependency-free S3-compatible API
-- **Telegra.ph publishing**: convert markdown to mobile-friendly Telegraph pages
-- **JS-rendered pages**: Browser fallback for SPA/Shadow DOM pages (Gemini shares, etc.)
-
-## Requirements
-
-- `curl` (pre-installed on most systems)
-- `node` + `npm` (pre-installed on most systems)
-- `defuddle`: `npm install -g defuddle`
-- Telegraph access token in `~/.hermes/telegraph_token` (optional)
-- Cloudflare R2 environment variables (optional; only needed for `--images r2`)
-
-## Usage
+Python 3.10+, curl, Node.js and npm. Extraction runs `npx --yes defuddle@0.19.4 parse ... -m -j`; the exact release was verified at [npm registry](https://registry.npmjs.org/defuddle/0.19.4). First run may fetch npm dependencies. No Telegraph/R2 credentials are required for local archiving.
 
 ```bash
-# Recommended default: save the article and all images locally
-python3 scripts/fetch-wechat.py \
-  "https://mp.weixin.qq.com/s/XXXXX" \
-  --images local
-
-# Save locally, upload image copies to R2, and use R2 URLs in Telegraph output
-python3 scripts/fetch-wechat.py \
-  "https://mp.weixin.qq.com/s/XXXXX" \
-  --images r2
-
-# Archive only, without attempting Telegraph publication
-python3 scripts/fetch-wechat.py \
-  "https://mp.weixin.qq.com/s/XXXXX" \
-  --images local --no-telegraph
-
-# Publish an existing markdown file (existing behavior)
-python3 scripts/publish-telegraph.py ~/.hermes/wechat-articles/title.md
+python3 scripts/fetch-wechat.py 'https://mp.weixin.qq.com/s/ARTICLE'
+python3 scripts/fetch-wechat.py 'https://mp.weixin.qq.com/s/ARTICLE' --output-dir ./archives
+# Each external action requires its own explicit flag:
+python3 scripts/fetch-wechat.py 'https://mp.weixin.qq.com/s/ARTICLE' --images r2
+python3 scripts/fetch-wechat.py 'https://mp.weixin.qq.com/s/ARTICLE' --publish
+python3 scripts/fetch-wechat.py 'https://mp.weixin.qq.com/s/ARTICLE' --images r2 --publish
+# Existing Markdown must already use public HTTPS image URLs:
+python3 scripts/publish-telegraph.py article.md --publish
 ```
 
-### Local archive layout
+Only WeChat URLs are automated (`/s/ID` and `/s?...`); this CLI does not fetch arbitrary websites or solve CAPTCHAs. Referer/mobile UA retries improve image compatibility, not guaranteed access.
+
+## Storage and failure semantics
+
+Output directory precedence: `--output-dir`, `WECHAT_ARTICLE_OUTPUT_DIR`, `$XDG_DATA_HOME/wechat-articles`, then `~/.local/share/wechat-articles`.
 
 ```text
-~/.hermes/wechat-articles/
-├── article-title.md
-└── assets/
-    └── article-title/
-        ├── 001-<url-hash>.jpg
-        └── 002-<url-hash>.webp
+wechat-articles/
+├── title-<URL-sha256-prefix>-<raw-sha256-prefix>.html
+├── title-<URL-sha256-prefix>-<raw-sha256-prefix>.md
+└── assets/title-<URL-sha256-prefix>/001-<image-url-hash>.jpg
 ```
 
-The Markdown uses relative paths, so move the `.md` file together with its `assets/` directory. Re-running a fetch reuses an existing asset with the same source URL hash.
+Frontmatter records title, source URL, UTC fetch time, author and publication date (`unknown` when absent). Original response bytes are retained; raw HTML is untrusted and should not be executed. Changing raw content creates a new snapshot; repeating identical input reuses the filename atomically. Different source URLs avoid same-title overwrites. Hashes are 16 hex characters for article/revision identity; exact URL identity deliberately does not strip query parameters. Image cache identity is source URL, not refreshed remote bytes.
 
-## Cloudflare R2
+Move HTML, Markdown and `assets/` together. Image download errors retain the original remote URL and make the archive partial. The 20 MiB cap, bounded anti-hotlink retries and unique atomic `.part` files protect downloads. HTTP 200 challenge/deletion pages, missing titles and insufficient bodies fail validation rather than masquerading as success. Structured short/image articles are accepted; borderline extraction needs manual inspection.
 
-R2 is optional. `--images r2` always keeps the local copy first; an individual upload failure does not delete or invalidate the local archive.
+R2 uploads begin only **after** local HTML, Markdown and successful images have been saved. Missing R2 settings, failed uploads or failed Telegraph calls leave these files intact. Exit codes: `0` completed, `1` partial images or external failure with local archive retained, `2` fetch/validation/storage failure.
 
-Required environment variables:
+## Optional publication and compatibility
 
-```text
-CF_R2_ACCOUNT_ID
-CF_R2_ACCESS_KEY_ID
-CF_R2_SECRET_ACCESS_KEY
-CF_R2_BUCKET
-CF_R2_PUBLIC_BASE_URL
+- Credentials never enable publication. `--images r2` alone does not create a Telegraph page; `--publish` alone does not mirror to R2.
+- `--no-telegraph` is a backward-compatible, redundant local-default flag; combining it with `--publish` is rejected.
+- Old archives are untouched. To retain the previous location explicitly set `WECHAT_ARTICLE_OUTPUT_DIR=~/.hermes/wechat-articles` (expand `~` normally or quote it; the script expands it).
+- Telegraph credentials: `TELEGRAPH_ACCESS_TOKEN`, then `TELEGRAPH_TOKEN_PATH`; legacy `~/.hermes/telegraph_token` fallback is read only after explicit publication.
+- Standalone publication now requires `--publish`, understands new frontmatter and legacy headers, and rejects relative image paths. The simple Telegraph renderer is not a full Markdown implementation.
+- R2 public endpoints must be HTTPS and cannot contain credentials/query/fragment or be S3 API endpoints. `r2.dev` is **rate-limited, development-only**, not suitable for production delivery.
+
+Load details as needed: [R2 setup, billing, troubleshooting and official sources](references/cloudflare-r2-setup.md), [Telegraph](references/telegraph-api.md), [browser fallback](references/js-rendered-pages.md).
+
+## Tests (no network, uploads or publication)
+
+```bash
+python3 -m compileall -q scripts
+PYTHONPATH=scripts python3 -m unittest discover -s scripts -p 'test_*.py' -v
+PYTHONPATH=scripts python3 scripts/test_image_assets.py
+python3 scripts/fetch-wechat.py --help
+python3 scripts/publish-telegraph.py --help
 ```
 
-Optional:
-
-```text
-CF_R2_KEY_PREFIX=wechat
-```
-
-Use a bucket-scoped R2 token with Object Read & Write permission. `CF_R2_PUBLIC_BASE_URL` can initially be the Cloudflare-managed `https://<pub-id>.r2.dev` development URL; a custom domain can be added later without changing the bucket or upload credentials.
-
-See the step-by-step guide:
-
-- [`references/cloudflare-r2-setup.md`](references/cloudflare-r2-setup.md)
-
-## Directory Structure
-
-```text
-wechat-article-fetch/
-├── SKILL.md
-├── README.md
-├── scripts/
-│   ├── fetch-wechat.py
-│   ├── image_assets.py
-│   └── publish-telegraph.py
-└── references/
-    ├── cloudflare-r2-setup.md
-    ├── telegraph-api.md
-    └── js-rendered-pages.md
-```
-
-## Design notes
-
-- Local storage is the source of truth; R2 is an optional public mirror.
-- Secrets are read only from environment variables and never written to article Markdown.
-- Images are written through `.part` files and atomically renamed after validation.
-- The R2 client uses Python's standard library and AWS Signature Version 4, so no extra S3 SDK is required.
+Repository discovery only: `npx skills@latest add . --list` from the repository root. This does not install/update the local skill.
 
 ## License
 
