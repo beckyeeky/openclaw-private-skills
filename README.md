@@ -42,7 +42,7 @@ dependencies or configure external accounts.
 | [`pixiv-novel-extractor`](skills/pixiv-novel-extractor/) | Extract public and authenticated Pixiv novels into Markdown or JSON. |
 | [`text-redaction`](skills/text-redaction/) | Redact emails and articles: keep the topic and reasoning, remove names and companies. |
 | [`trivia-quiz`](skills/trivia-quiz/) | Run an inline-button trivia game using deterministic question data. |
-| [`wechat-article-fetch`](skills/wechat-article-fetch/) | Fetch web articles into Markdown and optionally publish them to Telegra.ph. |
+| [`wechat-article-fetch`](skills/wechat-article-fetch/) | Archive WeChat articles locally as raw HTML, Markdown and images; explicitly opt into Telegraph/R2 publication. |
 | [`wsj-article-reader`](skills/wsj-article-reader/) | Retrieve and archive WSJ articles the user is already authorized to read, using a local private token. |
 | [`x-tweet-image-merge`](skills/x-tweet-image-merge/) | Combine all images in an X/Twitter post horizontally and download one PNG. |
 
