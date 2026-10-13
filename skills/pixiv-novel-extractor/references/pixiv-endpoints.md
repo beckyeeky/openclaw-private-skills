@@ -33,8 +33,10 @@
 - Endpoint: `https://app-api.pixiv.net/webview/v2/novel?id={id}`  
   (`webview/v1/novel?id=` also works; same payload shape.)
 - Headers: App-style `Authorization: Bearer {access_token}`, `app-os`, `user-agent` (see `getAppApiHeaders` / extract script).
-- Response: HTML page with inline script assigning `window.pixiv.value = { novel: { text, title, tags, ... }, ... }`.
-- Full text path: parse JS object → **`novel.text`** (string, may contain `[newpage]` and Pixiv ruby tags).
+- Response: HTML page with an inline script assigning the payload, e.g. `window.pixiv = { value: { novel: { text, title, tags, ... }, ... } }`.
+- Full text path: the strict literal parser locates the payload **member-first** (prefers `value: { … }`, falls back to the outer `window.pixiv = { … }`), string-aware, then reads **`novel.text`** (string, may contain `[newpage]` and Pixiv ruby tags). Decimal numeric keys (embedded-image ids) are supported; expressions are rejected and nothing is ever evaluated.
+- Parse failures report only the byte offset and the offending construct — never a snippet of the remote body. Size budgets are UTF-8 bytes: payload ≤ 4 MiB, whole HTML ≤ 16 MiB (the wider page budget is separate so unrelated inline chrome does not cause an early rejection).
+- If the payload parses but `novel.text` is missing, the cause is reported as **not determined** — this is not proof that the novel is private or deleted.
 - Clean with `cleanPixivText` from `scripts/lib/pixiv-api.mjs` before writing MD.
 
 ### Dead / do-not-use for body
@@ -51,8 +53,8 @@
 2. If `content` non-empty → done.
 3. If empty but metadata OK (or `xRestrict: 1`) → `extract-r18-webview.mjs <id>` with saved token.
 4. If OAuth fails → `auth --verify` / re-auth; only then report blocked.
-5. If webview 403/empty after valid token → private/mypixiv/deleted; stop.
+5. If webview 403/empty after valid token → report blocked/problem, but do **not** assert the novel is private/mypixiv/deleted unless there is direct evidence; a located payload with no `novel.text` is reported as "cause not determined".
 
 ## Implementation pointer
 
-Runnable fallback: `scripts/extract-r18-webview.mjs` (parses webview HTML, writes md/json like extract).
+Runnable fallback: `scripts/extract-r18-webview.mjs` (parses webview HTML with the strict literal parser, then uses the same managed output directory rules, overwrite protection, and Markdown renderer as `extract`).

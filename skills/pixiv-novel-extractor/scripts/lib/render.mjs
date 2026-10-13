@@ -6,8 +6,13 @@ export function renderNovelMarkdown(novel, { extractedAt = new Date().toISOStrin
     `- Novel ID: \`${novel.id}\``,
     `- Author: ${novel.author}`,
     `- Tags: ${novel.tags.length ? novel.tags.map(tag => `#${tag}`).join(' ') : '(none)'}`,
-    `- Extracted At: ${extractedAt}`,
   ]
+
+  if (novel.via) {
+    lines.push(`- Via: ${novel.via}`)
+  }
+
+  lines.push(`- Extracted At: ${extractedAt}`)
 
   if (novel.series?.id || novel.series?.title) {
     lines.push(`- Series: ${novel.series.title ?? '(untitled)'}${novel.series.id ? ` (\`${novel.series.id}\`)` : ''}`)

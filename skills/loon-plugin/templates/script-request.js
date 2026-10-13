@@ -1,5 +1,7 @@
 /**
- * Loon http-request skeleton
+ * Loon Request Script 骨架
+ * 挂载方式：Script V2（3.5.1 (983)+）request if … then script("…", {${mode}}) with …
+ *          或旧语法（≤982）http-request … script-path=…,argument="mode=…"
  * Argument: mode = scrub | origin
  * Store keys: prefix with your plugin name to avoid clashes.
  */

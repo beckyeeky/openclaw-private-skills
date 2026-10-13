@@ -46,6 +46,7 @@ Output precedence: `--output-dir` → `WECHAT_ARTICLE_OUTPUT_DIR` → `$XDG_DATA
 - Validation requires a title and useful body (20 characters normally, 4 with an article container; structured image articles are allowed). Quoted error phrases are not automatically errors. Ambiguous tiny pages fail explicitly for manual inspection.
 - Preserve the 20 MiB image cap, Referer/UA retries and atomic `.part` writes. Missing images remain remote references, so report a **partial archive**, not fully offline success.
 - Local HTML/Markdown and successful images are committed before R2 configuration/upload or Telegraph publication. External failures must never delete the local archive.
+- The fetcher and the standalone publisher share one Markdown→Telegraph-Node converter (`scripts/telegraph_nodes.py`); images keep their position in the body and the surrounding text is preserved as its own paragraph, instead of leaving literal `![...](...)` Markdown in the page.
 - Exit `0`: completed; `1`: local archive exists but image/external step incomplete; `2`: fetch/validation/storage failure. Report local paths, image counts and only actually-created publication URLs. No blind retries or claims that all images render externally.
 
 ## Compatibility

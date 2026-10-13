@@ -3,6 +3,9 @@ name = "bilibili-hub"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
-    "bilibili-api-python>=28.0",
+    # 对齐 PyPI 上实际存在的 17.4.x 版本线（最高 17.4.2，与 uv.lock 一致）；
+    # 代码中的调用形态（comment.get_comments / get_ai_conclusion / user.get_toview_list /
+    # get_dynamic_page_info / User.get_dynamics_new）均按 17.4.2 的签名编写。
+    "bilibili-api-python>=17.4,<18",
     "aiohttp>=3.9",
 ]

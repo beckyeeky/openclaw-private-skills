@@ -2,7 +2,7 @@
 name: pixiv-novel-extractor
 description: >
   Extract full text from Pixiv novels (all-ages public AJAX, or R-18 via App webview + refresh_token) from a URL/share text/bare ID, export Markdown or JSON. Use when the user wants to 保存/总结 Pixiv 小说全文, parse a novel link, manage a Pixiv App refresh token, or fetch App recommendations. R-18 empty-body → scripts/extract-r18-webview.mjs.
-metadata: {"openclaw":{"emoji":"📚","privacy":"Public novel URLs and optional Pixiv refresh tokens are sent to Pixiv endpoints for extraction and recommendation lookups. Tokens are stored locally in ~/.pixiv-novel-extractor/config.json only after successful verification.","requires":{"bins":["node"]},"optional":{"env":["PIXIV_REFRESH_TOKEN"],"config":["~/.pixiv-novel-extractor/config.json"]}}}
+metadata: {"openclaw":{"emoji":"📚","privacy":"Public novel URLs and optional Pixiv refresh tokens are sent to Pixiv endpoints for extraction and recommendation lookups. Tokens are stored locally only after successful verification, in ~/.pixiv-novel-extractor/config.json with 0600 file permissions inside a 0700 directory.","requires":{"bins":["node"]},"optional":{"env":["PIXIV_REFRESH_TOKEN"],"config":["~/.pixiv-novel-extractor/config.json"]}}}
 allowed-tools: Bash(node:*)
 ---
 
@@ -65,10 +65,12 @@ If `extract` succeeds but **metadata only** (`content` empty / `content_len 0`),
 
 ```bash
 # requires prior: node scripts/pixiv-novel.mjs auth  (or PIXIV_REFRESH_TOKEN)
-node scripts/extract-r18-webview.mjs "<url-or-id>" --format both -o /tmp/Pixiv-Novel-Skill
+node scripts/extract-r18-webview.mjs "<url-or-id>" --format both -o /tmp/pixiv-out
 ```
 
 Token resolution matches `recommended`: `--token-stdin` → `PIXIV_REFRESH_TOKEN` → `~/.pixiv-novel-extractor/config.json`.
+
+The webview HTML is parsed by a strict literal parser that never evaluates remote content (no `Function`/`eval`); unexpected payload shapes fail with a non-zero exit instead of falling back to execution.
 
 Details: [references/pixiv-endpoints.md](references/pixiv-endpoints.md), script `scripts/extract-r18-webview.mjs`.
 
@@ -110,10 +112,13 @@ echo "PIXIV_REFRESH_TOKEN" | node scripts/pixiv-novel.mjs recommended --token-st
 - `--format md` writes Markdown only.
 - `--format json` writes structured JSON only.
 - `--format both` writes both files.
-- Without `-o`, extract writes into `workspace/Pixiv-Novel-Skill/...` when invoked from a workspace, otherwise into the system temp directory.
+- Without `-o`, `extract` writes into `workspace/Pixiv-Novel-Skill/...` when invoked from a workspace, otherwise into the system temp directory.
+- `-o <dir>` is the **final** output directory for both `extract` and `extract-r18-webview.mjs`; no extra `<novelId>_<slug>` level is appended. Only when `-o` is omitted does the skill build `<base>/Pixiv-Novel-Skill/<novelId>_<slug>/`.
 - Relative `-o` paths are rooted at the workspace or system temp directory, not inside the skill folder.
 - Extracted novel files are named from the novel title, for example `测试小说.md`; when a file name already exists in the target folder, the skill appends `-2`, `-3`, and so on instead of overwriting.
-- Embedded novel images stay in-place as Markdown image placeholders with a preferred public proxy URL and fallback links.
+- Embedded novel images stay in-place as Markdown image placeholders with a preferred public proxy URL and fallback links (both `extract` and `extract-r18-webview.mjs`).
+- Invalid ID input, a missing/invalid `--format` value, and unknown options fail before any network request, exit non-zero, and write no files; a success message is only printed after files are written.
+- An empty `-o`/`--output` value, or one that begins with `-` (for example `-o -x`), is rejected the same way as `--format`; a path that literally starts with `-` can still be given as `./-name`. `-o` semantics (the final output directory) are unchanged.
 - All-ages public `extract` does not return R-18 body text; use `extract-r18-webview.mjs` when content is empty.
 - Truly private / mypixiv-only / deleted novels remain unsupported.
 
@@ -121,8 +126,10 @@ echo "PIXIV_REFRESH_TOKEN" | node scripts/pixiv-novel.mjs recommended --token-st
 
 - **R-18 empty body is not failure of the novel ID.** `ajax/novel/{id}` returns title/tags/`xRestrict:1` but `content: null` without session. Always fall back to webview path.
 - **`/v1/novel/text` is dead (404).** Do not use it. App metadata `v2/novel/detail` also has **no text field** — only webview carries full text.
-- **Webview HTML is not JSON.** Parse `window.pixiv` → `value.novel.text` (see script). Plain `web_extract` / browser login wall will not get R-18 body.
-- Token already saved under `~/.pixiv-novel-extractor/config.json` on this host — reuse; do not re-ask unless `auth --verify` fails.
+- **Webview HTML is not JSON.** It is parsed by a strict, non-executing literal parser (`scripts/lib/js-literal.mjs`). The parser locates the payload **string-aware** and **member-first**: it prefers the `value: { … }` member and only falls back to the outer `window.pixiv = { … }` object, so an outer sibling that is not a literal (e.g. `kept: undefined`) does not break extraction, and a `value: {` that merely appears inside the novel text is not mistaken for the payload. Decimal numeric keys (embedded-image ids such as `textEmbeddedImages: { 123456789: … }`) are accepted; expressions are not. Nothing from the response is ever evaluated. Plain `web_extract` / browser login wall will not get R-18 body.
+- **Size budgets are measured in UTF-8 bytes.** The payload literal is capped at 4 MiB and the raw HTML at a separate, wider 16 MiB so unrelated inline page chrome is not rejected before the payload is found. These are budgets, not a guarantee that every real-world long novel page fits; an unusually large page still fails closed.
+- **Parse errors never echo the response body.** Failures report the byte offset and the offending construct only — never a snippet of the remote payload — so R-18 text cannot leak into the host log via stderr. This also applies to the "no body text" case: if the payload parses but `novel.text` is absent, the cause is reported as **not determined** (it is not proof that the novel is private or deleted).
+- A refresh_token may already be saved under `~/.pixiv-novel-extractor/config.json`; if one is, reuse it and do not re-ask unless `auth --verify` fails. On a machine without a saved token, run `auth` (or use `PIXIV_REFRESH_TOKEN` / `--token-stdin`) first. Read-only commands do not rewrite the file, so a config saved by an older version may still be group/world-readable; re-running `auth` re-writes it with `0600`/`0700` and tightens it.
 
 ## Agent Rules
 

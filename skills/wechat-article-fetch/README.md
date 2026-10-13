@@ -42,7 +42,7 @@ R2 uploads begin only **after** local HTML, Markdown and successful images have 
 - `--no-telegraph` is a backward-compatible, redundant local-default flag; combining it with `--publish` is rejected.
 - Old archives are untouched. To retain the previous location explicitly set `WECHAT_ARTICLE_OUTPUT_DIR=~/.hermes/wechat-articles` (expand `~` normally or quote it; the script expands it).
 - Telegraph credentials: `TELEGRAPH_ACCESS_TOKEN`, then `TELEGRAPH_TOKEN_PATH`; legacy `~/.hermes/telegraph_token` fallback is read only after explicit publication.
-- Standalone publication now requires `--publish`, understands new frontmatter and legacy headers, and rejects relative image paths. The simple Telegraph renderer is not a full Markdown implementation.
+- Standalone publication now requires `--publish`, understands new frontmatter and legacy headers, and rejects relative image paths. The simple Telegraph renderer is not a full Markdown implementation, but it does keep every image in place with its surrounding text (one shared converter for both scripts).
 - R2 public endpoints must be HTTPS and cannot contain credentials/query/fragment or be S3 API endpoints. `r2.dev` is **rate-limited, development-only**, not suitable for production delivery.
 
 Load details as needed: [R2 setup, billing, troubleshooting and official sources](references/cloudflare-r2-setup.md), [Telegraph](references/telegraph-api.md), [browser fallback](references/js-rendered-pages.md).

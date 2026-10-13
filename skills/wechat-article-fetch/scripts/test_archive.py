@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import archive_core as core
 import image_assets as assets
+import telegraph_nodes
 from test_image_assets import FakeR2
 
 
@@ -190,6 +191,57 @@ class ArchiveTests(unittest.TestCase):
         with patch.object(publisher, "publish") as pub:
             self.assertEqual(publisher.main([path, "--publish"]), 1)
             pub.assert_not_called()
+
+    def test_telegraph_converter_is_shared_and_keeps_images_in_place(self):
+        # One implementation, imported by both entry points.
+        self.assertIs(fetcher.md_to_telegraph_nodes, publisher.md_to_telegraph_nodes)
+        self.assertIs(fetcher.md_to_telegraph_nodes, telegraph_nodes.md_to_telegraph_nodes)
+
+        md = "\n".join([
+            "## 小节标题",
+            "Some text ![alt](https://mmbiz.qpic.cn/b.png) more text",
+            "![配图](https://mmbiz.qpic.cn/mmbiz_png/abc/640?wx_fmt=png&tp=webp) 这是一段很长的图注说明文字",
+            "![one](https://mmbiz.qpic.cn/1.png) ![two](https://mmbiz.qpic.cn/2.png)",
+            "微信扫一扫",
+            "**粗体小节**",
+            "![](https://mmbiz.qpic.cn/3.png)",
+        ])
+        for convert in (fetcher.md_to_telegraph_nodes, publisher.md_to_telegraph_nodes):
+            nodes = convert(md)
+            self.assertEqual(
+                [node["tag"] for node in nodes],
+                ["h3", "p", "figure", "p", "figure", "p",
+                 "figure", "figure", "h4", "img"],
+            )
+            # Surrounding text keeps its position around the image.
+            self.assertEqual(nodes[1], {"tag": "p", "children": ["Some text"]})
+            self.assertEqual(nodes[3], {"tag": "p", "children": ["more text"]})
+            self.assertEqual(
+                nodes[5], {"tag": "p", "children": ["这是一段很长的图注说明文字"]})
+            # The image URL is intact, including its query string.
+            self.assertEqual(
+                nodes[4]["children"][0]["attrs"]["src"],
+                "https://mmbiz.qpic.cn/mmbiz_png/abc/640?wx_fmt=png&tp=webp",
+            )
+            # No literal Markdown image syntax survives into any node.
+            self.assertNotIn("![", json.dumps(nodes, ensure_ascii=False))
+
+    def test_telegraph_converter_handles_alt_caption_and_plain_lines(self):
+        # alt text -> figure + figcaption; missing alt -> bare img.
+        figure = fetcher.md_to_telegraph_nodes("![图注](https://mmbiz.qpic.cn/a.png)")[0]
+        self.assertEqual(figure["tag"], "figure")
+        self.assertEqual(figure["children"][0], {"tag": "img", "attrs": {"src": "https://mmbiz.qpic.cn/a.png"}})
+        self.assertEqual(figure["children"][1], {"tag": "figcaption", "children": ["图注"]})
+        self.assertEqual(
+            fetcher.md_to_telegraph_nodes("![](https://mmbiz.qpic.cn/a.png)"),
+            [{"tag": "img", "attrs": {"src": "https://mmbiz.qpic.cn/a.png"}}],
+        )
+        # Lines without images keep the previous heading/paragraph behaviour.
+        self.assertEqual(fetcher.md_to_telegraph_nodes("## H2"), [{"tag": "h3", "children": ["H2"]}])
+        self.assertEqual(fetcher.md_to_telegraph_nodes("**bold**"), [{"tag": "h4", "children": ["bold"]}])
+        self.assertEqual(fetcher.md_to_telegraph_nodes("plain"), [{"tag": "p", "children": ["plain"]}])
+        self.assertEqual(fetcher.md_to_telegraph_nodes("继续滑动看下一个"), [])
+        self.assertEqual(fetcher.md_to_telegraph_nodes(""), [])
 
     def test_atomic_write_failure_leaves_existing_snapshot_and_no_parts(self):
         path = self.root / "keep.md"

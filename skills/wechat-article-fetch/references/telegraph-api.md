@@ -11,7 +11,7 @@ Use `TELEGRAPH_ACCESS_TOKEN` or `TELEGRAPH_TOKEN_PATH`. For migration only, the 
 ## Limits and caveats
 
 - API content limit is 64 KB; title limit is 256 characters. Do not silently truncate an archive. A publication error must preserve the local source and report failure; split manually only if requested.
-- The bundled Markdown-to-Node converter is intentionally simple, not a complete Markdown renderer. Validate published layout when publication is actually requested; supported tags are documented in the API.
+- The bundled Markdown-to-Node converter is a single shared implementation (`scripts/telegraph_nodes.py`, imported by both the fetcher and the standalone publisher), intentionally simple rather than a complete Markdown renderer. It emits every Markdown image as an in-place `<img>`/`<figure>` node and keeps the text before/after it on the same line as its own paragraph(s); only lines without an image use the heading/paragraph rules. Validate published layout when publication is actually requested; supported tags are documented in the API.
 - Local `assets/...` references are not publicly accessible. Standalone publishing rejects non-HTTPS Markdown image URLs. Use `fetch-wechat.py --images r2 --publish` only when both actions were requested, or prepare an existing Markdown copy with public HTTPS image URLs.
 - Without R2 mirroring, fetch publication uses original image URLs. WeChat hotlink protection or Telegraph behavior can still break them; no image whitelist or guaranteed compatibility is assumed.
 - Failed image uploads fall back to original source URLs in the publication copy, while the local archive stays unchanged. Exit `1` indicates partial/external failure; do not call it fully successful.

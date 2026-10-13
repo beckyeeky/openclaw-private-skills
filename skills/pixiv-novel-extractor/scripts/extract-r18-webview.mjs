@@ -5,33 +5,75 @@
  *
  * Usage:
  *   node scripts/extract-r18-webview.mjs <url-or-id> [--format md|json|both] [-o <dir>] [--token-stdin]
+ *
+ * Security: the webview HTML is parsed by lib/js-literal.mjs, a strict literal
+ * parser that never evaluates remote content (no Function/eval). Any payload
+ * outside that grammar fails loudly instead of executing.
+ *
+ * Output: this script reuses the same managed output directory rules, overwrite
+ * protection, and Markdown renderer as `pixiv-novel.mjs extract`.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { resolveRefreshToken } from './lib/config.mjs'
 import { extractPixivNovelId, slugifyTitle } from './lib/input.mjs'
+import { extractPixivValueFromHtml } from './lib/js-literal.mjs'
+import { writeOutputs } from './lib/output-files.mjs'
+import { getManagedOutputBaseDir, resolveManagedOutputDir } from './lib/output-paths.mjs'
 import {
   cleanPixivText,
   exchangeRefreshToken,
   getNovelUrl,
   parseContent,
+  resolveImagesFromEmbeddedData,
 } from './lib/pixiv-api.mjs'
+import { createOutputPayloads } from './lib/render.mjs'
+
+const VALID_FORMATS = new Set(['md', 'json', 'both'])
 
 const DEFAULT_APP_OS = 'ios'
 const DEFAULT_APP_OS_VERSION = '14.6'
 const DEFAULT_USER_AGENT = 'PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)'
 
-function appHeaders(accessToken) {
+export const USAGE =
+  'Usage: node scripts/extract-r18-webview.mjs <url-or-id> [--format md|json|both] [-o <dir>] [--token-stdin]'
+
+function appHeaders(accessToken, env = process.env) {
   return {
     Authorization: `Bearer ${accessToken}`,
-    'app-os': process.env.PIXIV_APP_OS || DEFAULT_APP_OS,
-    'app-os-version': process.env.PIXIV_APP_OS_VERSION || DEFAULT_APP_OS_VERSION,
-    'user-agent': process.env.PIXIV_USER_AGENT || DEFAULT_USER_AGENT,
+    'app-os': env.PIXIV_APP_OS || DEFAULT_APP_OS,
+    'app-os-version': env.PIXIV_APP_OS_VERSION || DEFAULT_APP_OS_VERSION,
+    'user-agent': env.PIXIV_USER_AGENT || DEFAULT_USER_AGENT,
   }
 }
 
-function parseArgs(argv) {
+/**
+ * Validate an `-o` / `--output` value with the same strength as `--format`:
+ * an empty value is rejected, and a value that looks like another option
+ * (leading `-`) is rejected instead of being silently used as a directory name.
+ * A path that genuinely starts with `-` is still expressible as `./-name`.
+ */
+function validateOutputValue(value) {
+  if (!value) {
+    throw new Error('Invalid output path: value must not be empty (use -o <dir>)')
+  }
+  if (value.startsWith('-')) {
+    throw new Error(
+      `Invalid output path "${value}": a leading "-" is not accepted. Prefix a literal leading-dash path with ./ (e.g. -o ./-name).`
+    )
+  }
+  return value
+}
+
+/**
+ * Parse and validate CLI arguments. Throws on unknown options, missing option
+ * values, unsupported `--format` values, and invalid `-o`/`--output` values so
+ * callers get a non-zero exit before any network request happens.
+ */
+export function parseArgs(argv) {
   const options = {
     format: 'both',
     output: null,
@@ -39,163 +81,232 @@ function parseArgs(argv) {
     help: false,
     positionals: [],
   }
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i]
-    if (arg === '--format' || arg === '-f') {
-      options.format = argv[++i]
-      continue
-    }
-    if (arg === '-o' || arg === '--output') {
-      options.output = argv[++i]
-      continue
-    }
-    if (arg === '--token-stdin') {
-      options.tokenStdin = true
-      continue
-    }
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+
     if (arg === '-h' || arg === '--help') {
       options.help = true
       continue
     }
-    if (!arg.startsWith('-')) options.positionals.push(arg)
+
+    if (arg === '--token-stdin') {
+      options.tokenStdin = true
+      continue
+    }
+
+    if (arg === '--format' || arg === '-f') {
+      const next = argv[index + 1]
+      if (!next || next.startsWith('-')) {
+        throw new Error('Missing value for --format. Use md, json, or both.')
+      }
+      options.format = next
+      index += 1
+      continue
+    }
+
+    if (arg.startsWith('--format=')) {
+      options.format = arg.slice('--format='.length)
+      continue
+    }
+
+    if (arg === '-o' || arg === '--output') {
+      const next = argv[index + 1]
+      if (next === undefined) throw new Error('Missing value for --output. Use -o <dir>.')
+      options.output = validateOutputValue(next)
+      index += 1
+      continue
+    }
+
+    if (arg.startsWith('--output=')) {
+      options.output = validateOutputValue(arg.slice('--output='.length))
+      continue
+    }
+
+    if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`)
+    }
+
+    options.positionals.push(arg)
   }
+
+  if (!VALID_FORMATS.has(options.format)) {
+    throw new Error(`Invalid format "${options.format}". Use md, json, or both.`)
+  }
+
   return options
 }
 
-function extractPixivValueObject(html) {
-  const marker = 'value: {'
-  const start = html.indexOf(marker)
-  if (start < 0) throw new Error('webview HTML missing window.pixiv value object')
-  const i = start + 'value: '.length
-  let depth = 0
-  let end = -1
-  for (let p = i; p < html.length; p += 1) {
-    const ch = html[p]
-    if (ch === '{') depth += 1
-    else if (ch === '}') {
-      depth -= 1
-      if (depth === 0) {
-        end = p + 1
-        break
-      }
-    }
-  }
-  if (end < 0) throw new Error('failed to balance braces for window.pixiv value')
-  // webview embeds a JS object literal, not strict JSON
-  // eslint-disable-next-line no-new-func
-  return Function(`"use strict"; return (${html.slice(i, end)})`)()
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return []
+  return tags
+    .map(tag => (typeof tag === 'string' ? tag : (tag?.tag ?? tag?.name ?? null)))
+    .filter(tag => typeof tag === 'string' && tag.length > 0)
 }
 
-function safeFilename(title, novelId) {
-  return slugifyTitle(title || `novel-${novelId}`).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80)
-}
-
-async function main() {
-  const options = parseArgs(process.argv.slice(2))
-  if (options.help || options.positionals.length === 0) {
-    console.log(
-      'Usage: node scripts/extract-r18-webview.mjs <url-or-id> [--format md|json|both] [-o dir] [--token-stdin]',
-    )
-    process.exit(options.help ? 0 : 1)
-  }
-
-  const novelId = extractPixivNovelId(options.positionals[0])
-  if (!novelId) throw new Error(`Could not parse novel id from: ${options.positionals[0]}`)
-
-  const resolved = await resolveRefreshToken({ tokenStdin: options.tokenStdin })
-  const refreshToken = resolved?.token
-  if (!refreshToken) {
-    throw new Error(
-      'No refresh_token. Run: node scripts/pixiv-novel.mjs auth  (or set PIXIV_REFRESH_TOKEN / --token-stdin)',
-    )
-  }
-
-  const auth = await exchangeRefreshToken(refreshToken)
-  const accessToken = auth?.access_token
-  if (!accessToken) throw new Error('OAuth response missing access_token')
-
-  const url = `https://app-api.pixiv.net/webview/v2/novel?id=${novelId}`
-  const res = await fetch(url, { headers: appHeaders(accessToken) })
-  if (!res.ok) throw new Error(`webview request failed: HTTP ${res.status}`)
-  const html = await res.text()
-  const data = extractPixivValueObject(html)
-  const novel = data?.novel
-  if (!novel?.text) throw new Error('webview payload missing novel.text (private/deleted?)')
-
+function buildNovelPayload({ data, novel, novelId }) {
   const rawText = novel.text
-  const cleaned = cleanPixivText(rawText)
   const { parts, images } = parseContent(rawText)
-  const tags = Array.isArray(novel.tags) ? novel.tags : []
+  const resolvedImages = resolveImagesFromEmbeddedData(
+    images,
+    novel.textEmbeddedImages ?? data?.textEmbeddedImages ?? null
+  )
+  const contentParts = parts.map(part => {
+    if (part.type === 'image') {
+      return { ...part, image: resolvedImages.find(candidate => candidate.id === part.imageId) }
+    }
+    return part
+  })
+  const content = contentParts
+    .filter(part => part.type === 'text')
+    .map(part => part.content)
+    .join('\n\n')
+    .trim()
+
   const title = novel.title || `Pixiv Novel ${novelId}`
   const author =
     data?.authorDetails?.userName ||
     data?.authorDetails?.name ||
     novel.userName ||
     'Unknown'
-  const description = cleanPixivText(
-    String(novel.caption || '')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<[^>]+>/g, ''),
-  )
-  const sourceUrl = getNovelUrl(novelId)
 
-  const payload = {
+  return {
     id: Number(novelId),
     title,
     author,
-    description,
-    tags,
-    content: cleaned,
-    contentParts: parts,
-    images,
+    description: cleanPixivText(
+      String(novel.caption || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+    ),
+    tags: normalizeTags(novel.tags),
+    content,
+    contentParts,
+    images: resolvedImages,
     series: novel.seriesId
-      ? { id: novel.seriesId, title: novel.seriesTitle || null }
+      ? { id: novel.seriesId, title: novel.seriesTitle || null, prev: null, next: null }
       : null,
-    sourceUrl,
+    sourceUrl: getNovelUrl(novelId),
     xRestrict: novel.rating?.xRestrict ?? novel.xRestrict ?? 1,
     via: 'app-webview-v2',
   }
-
-  const base = safeFilename(title, novelId)
-  const outDir = resolve(
-    options.output || join(process.cwd(), 'Pixiv-Novel-Skill', `${novelId}_${base}`),
-  )
-  mkdirSync(outDir, { recursive: true })
-
-  if (options.format === 'md' || options.format === 'both') {
-    const md = [
-      `# ${title}`,
-      '',
-      `- Source: [Pixiv Novel](${sourceUrl})`,
-      `- Novel ID: \`${novelId}\``,
-      `- Author: ${author}`,
-      `- Tags: ${tags.map(t => `#${t}`).join(' ')}`,
-      `- Via: app-webview-v2 (R-18/auth fallback)`,
-      '',
-      '## Description',
-      '',
-      description || '(none)',
-      '',
-      '## Content',
-      '',
-      cleaned,
-      '',
-    ].join('\n')
-    const mdPath = join(outDir, `${base}.md`)
-    writeFileSync(mdPath, md, 'utf8')
-    console.log(mdPath)
-  }
-
-  if (options.format === 'json' || options.format === 'both') {
-    const jsonPath = join(outDir, `${base}.json`)
-    writeFileSync(jsonPath, JSON.stringify(payload, null, 2), 'utf8')
-    console.log(jsonPath)
-  }
-
-  console.log(`Saved R-18/auth novel "${title}" (${novelId}) chars=${cleaned.length}`)
 }
 
-main().catch(err => {
-  console.error(err?.stack || err?.message || err)
-  process.exit(1)
-})
+/**
+ * Run one R-18 extraction. All I/O boundaries are injectable so tests can run
+ * fully offline (no network, no real credentials).
+ */
+export async function runR18Extraction({
+  argv = process.argv.slice(2),
+  fetchImpl = fetch,
+  env = process.env,
+  cwd = process.cwd(),
+  homeDir = homedir(),
+  stdout = process.stdout,
+} = {}) {
+  // 1. Argument validation happens before any network access.
+  const options = parseArgs(argv)
+
+  if (options.help) {
+    stdout.write(`${USAGE}\n`)
+    return { help: true }
+  }
+
+  if (options.positionals.length !== 1) {
+    throw new Error('extract-r18-webview requires exactly one Pixiv novel URL or ID')
+  }
+
+  const novelId = extractPixivNovelId(options.positionals[0])
+  if (!novelId) {
+    throw new Error(`Could not parse novel id from: ${options.positionals[0]}`)
+  }
+
+  const requestedOutputDir = options.output
+    ? resolveManagedOutputDir(options.output, { cwd, env })
+    : null
+
+  // 2. Credentials + network.
+  const resolved = await resolveRefreshToken({ tokenStdin: options.tokenStdin, env, homeDir })
+  const refreshToken = resolved?.token
+  if (!refreshToken) {
+    throw new Error(
+      'No refresh_token. Run: node scripts/pixiv-novel.mjs auth  (or set PIXIV_REFRESH_TOKEN / --token-stdin)'
+    )
+  }
+
+  const auth = await exchangeRefreshToken(refreshToken, { fetchImpl, env })
+  const accessToken = auth?.access_token
+  if (!accessToken) throw new Error('OAuth response missing access_token')
+
+  const url = `https://app-api.pixiv.net/webview/v2/novel?id=${novelId}`
+  const response = await fetchImpl(url, { headers: appHeaders(accessToken, env) })
+  if (!response.ok) throw new Error(`webview request failed: HTTP ${response.status}`)
+
+  const html = await response.text()
+
+  // 3. Strict, non-executing parse of the remote payload.
+  const data = extractPixivValueFromHtml(html)
+  const novel = data?.novel
+  if (!novel?.text) {
+    // The payload was located and parsed, but there is no body text. Do not
+    // guess why: this is not necessarily a private/deleted novel.
+    throw new Error(
+      'webview payload has no novel.text: cause not determined (this is not proof that the novel is private or deleted)'
+    )
+  }
+
+  const payload = buildNovelPayload({ data, novel, novelId })
+
+  // 4. Same managed output directory + overwrite protection as `extract`.
+  const outputDir =
+    requestedOutputDir ??
+    resolve(
+      getManagedOutputBaseDir({ cwd, env }),
+      'Pixiv-Novel-Skill',
+      `${novelId}_${slugifyTitle(payload.title)}`
+    )
+
+  const payloads = createOutputPayloads('novel', payload)
+  const writtenFiles = await writeOutputs('novel', payloads, {
+    format: options.format,
+    outputDir,
+    data: payload,
+  })
+
+  stdout.write(`Saved R-18/auth novel "${payload.title}" (${novelId}) chars=${payload.content.length}\n`)
+  writtenFiles.forEach(file => stdout.write(`${file}\n`))
+
+  return {
+    novelId,
+    title: payload.title,
+    outputDir,
+    format: options.format,
+    files: writtenFiles,
+  }
+}
+
+/**
+ * Format the single-line error that the CLI prints on failure. Kept as an
+ * exported helper so tests can assert that remote payload bytes never reach the
+ * message (and therefore never reach the host log via stderr).
+ */
+export function formatCliError(error) {
+  return error?.message || String(error)
+}
+
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return resolve(entry) === fileURLToPath(import.meta.url)
+  }
+}
+
+if (isDirectRun()) {
+  runR18Extraction().catch(error => {
+    console.error(formatCliError(error))
+    process.exitCode = 1
+  })
+}
