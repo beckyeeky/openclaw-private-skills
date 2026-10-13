@@ -2,7 +2,7 @@
 """Fetch WeChat articles locally; external publication requires explicit opt-in."""
 
 import argparse
-import subprocess, json, re, os, sys, urllib.request, tempfile
+import subprocess, json, os, sys, urllib.request, tempfile
 from datetime import datetime, timezone
 import hashlib
 from archive_core import (DEFUDDLE_VERSION, validate_article, output_directory,
@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from image_assets import ImageRewriteResult, R2Client, R2Config, make_slug, rewrite_images
+from telegraph_nodes import md_to_telegraph_nodes
 
 
 def fetch(url: str) -> dict:
@@ -81,43 +82,6 @@ def save_markdown(url: str, data: dict, image_mode: str = "local", output_dir=No
         except ValueError as exc:
             image_result.r2_error = str(exc)
     return str(fpath), image_result.publication_markdown, image_result
-
-
-def md_to_telegraph_nodes(md_text: str) -> list:
-    """Markdown → Telegraph Node 数组"""
-    nodes = []
-    skip_set = {"李姝 李姝", "在小说阅读器读本章", "去阅读",
-                "微信扫一扫", "微信扫一扫  ", "使用小程序",
-                "继续滑动看下一个", "潇湘晨报", "向上滑动看下一个"}
-
-    for line in md_text.split("\n"):
-        s = line.strip()
-        if not s or s in skip_set:
-            continue
-
-        img_matches = list(re.finditer(r'!\[([^\]]*)\]\(([^)]+)\)', s))
-        if img_matches:
-            pure = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', '', s).strip()
-            if not pure or pure in {"△", "▲", "图：", "—", ""} or len(pure) < 5:
-                for m in img_matches:
-                    alt, src = m.group(1), m.group(2)
-                    img_node = {"tag": "img", "attrs": {"src": src}}
-                    if alt:
-                        nodes.append({"tag": "figure", "children": [
-                            img_node, {"tag": "figcaption", "children": [alt]}
-                        ]})
-                    else:
-                        nodes.append(img_node)
-                continue
-
-        if s.startswith("## "):
-            nodes.append({"tag": "h3", "children": [s[3:].strip("**")]})
-        elif s.startswith("**") and s.endswith("**") and len(s) > 4:
-            nodes.append({"tag": "h4", "children": [s.strip("*")]})
-        else:
-            nodes.append({"tag": "p", "children": [s]})
-
-    return nodes
 
 
 def publish_telegraph(title: str, author: str, author_url: str, content_md: str, token: str) -> str:

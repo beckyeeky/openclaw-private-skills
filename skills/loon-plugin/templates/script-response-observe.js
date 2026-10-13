@@ -1,6 +1,7 @@
 /**
- * Loon http-response observe-only skeleton
- * Does NOT modify body. Optional throttled notify on bad business codes.
+ * Loon Response Script 骨架（观察，不修改 Body）
+ * 挂载方式：Script V2（3.5.1 (983)+）；Response Script 必须带 URL Guard（条件中的 ${url} ~= … 为必要条件）
+ * 可选按业务码节流通知。
  * Argument: notify = true|false
  */
 

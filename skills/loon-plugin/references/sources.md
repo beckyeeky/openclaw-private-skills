@@ -1,14 +1,20 @@
 # Reference sources
 
-## Local (this VPS)
+## 官方（权威，匿名公开）
 
-| Path | Role |
-|------|------|
-| `/root/repos/TabulaBili-Loon/` | Full modern plugin: Argument, request scrub, capture exclusion, risk probe, AGENTS.md |
-| `/root/repos/TabulaBili-Loon/TabulaBili.plugin` | Install entry + MitM + Script lines |
-| `/root/repos/TabulaBili-Loon/AGENTS.md` | Decision log, raw 404, App access_key resign, verification |
+| URL | 用途 |
+|-----|------|
+| https://nsloon.app/docs/Plugin/ | 插件元数据、`[Argument]`、`[General]`、`[IP Rewrite]`、发布 |
+| https://nsloon.app/docs/Rewrite/rewrite_v2 | Rewrite V2 全语法（3.5.1 (978)+） |
+| https://nsloon.app/docs/Rewrite/ | Rewrite 旧语法（978 之前，仅维护旧配置） |
+| https://nsloon.app/docs/Script/script_v2 | Script V2（3.5.1 (983)+，默认语法） |
+| https://nsloon.app/docs/Script/ | Script 旧语法（≤982，仅维护旧配置） |
+| https://nsloon.app/docs/Script/script_api | Script API 与 build 门槛 |
+| https://nsloon.app/rewrite-builder/ | Rewrite 生成器（仅浏览器本地生成，不执行） |
+| https://nsloon.app/docs/MitM/ | `[MitM] hostname` |
+| https://nsloon.app/docs/Scheme/ | `loon://import?plugin=encode(url)` |
 
-## Community
+## 社区（仅作格式参考，非权威）
 
 | URL | Role |
 |-----|------|
@@ -18,14 +24,10 @@
 
 ## Sample formats observed
 
-**deezertidal root plugins:** often `#!name=` without spaces; `[MITM]`; long `[URL Rewrite]` reject lists; compact `requires-body=1`.
+**deezertidal root plugins:** often `#!name=` without spaces; `[MITM]`（全大写；官方文档 `[Mitm]`（Plugin 示例）与 `[MitM]`（MitM 页）并存、未声明大小写敏感，本仓不判其非法，兼容性未真机验证）; long `[URL Rewrite]` reject lists; compact `requires-body=1`（旧语法）.
 
-**TabulaBili / 可莉-aligned:** `#!name =` with spaces; `[MitM]`; `script-path =` with spaces; `[Argument]` select/switch; remote raw scripts.
+**TabulaBili / 可莉-aligned:** `#!name =` with spaces; `[MitM]`; 新版 `script(...)` / `with`；`[Argument]` select/switch; remote raw scripts.
 
-**When writing new plugins for Beck:** prefer Tabula/可莉 spacing + `[MitM]` + root install entry + `AGENTS.md`.
+**When writing new plugins:** prefer official spacing + MitM 段落（本仓约定 `[MitM]`；官方两处分别写作 `[Mitm]`/`[MitM]`，大小写不判非法）+ 根目录安装入口；新 Rewrite 用 `request`/`response` + 位置参数，新 Script 用 `script(...)` + `with`（`with` 可省略）。
 
-## License / ethics
-
-- 可莉 / ProxyResource: CC BY-NC-SA 等限制 — 学习接口与结构，勿整包商用搬运、注意其「学习研究」声明。
-- deezertidal 等仓库含解锁/破解向脚本 — **本 skill 只借用 .plugin 语法与 MitM 模式**，不指导绕过付费版权保护作为产品目标。
-- 自研插件写清目标（去广告 / 去个性化 / 调试探针），保留上游致谢。
+> 私有参考样本（一个真实 Loon 插件项目，含 `[Argument]`、请求清洗、风控探针与真机验证日志）不写进本仓、不落盘路径；需要时向维护者索取，按 `{baseDir}` 约定引用，**不要假设任何固定 checkout 路径**。

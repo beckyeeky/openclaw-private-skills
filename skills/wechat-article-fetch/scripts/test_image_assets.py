@@ -91,6 +91,30 @@ def main() -> None:
         assert failed.failed == 1
         assert "https://mmbiz.qpic.cn/bad.jpg" in failed.local_markdown
 
+        # Regression: a WeChat image URL with a query string must reach the
+        # downloader intact.  The shared MARKDOWN_IMAGE_RE is not changed by the
+        # Telegraph-node fix, so this guards against silently truncating
+        # "?wx_fmt=png&tp=webp" at the "?" or "&".
+        query_url = "https://mmbiz.qpic.cn/mmbiz_png/abc/640?wx_fmt=png&tp=webp"
+        seen_urls = []
+
+        def record_download(url, source_page_url, max_bytes, timeout=30):
+            seen_urls.append(url)
+            return (b"\x89PNG\r\n\x1a\nquery", "image/png")
+
+        with TemporaryDirectory() as query_temp:
+            with patch("image_assets._download_image", side_effect=record_download):
+                query_result = rewrite_images(
+                    "![图](%s)" % query_url,
+                    Path(query_temp),
+                    "query",
+                    "https://mp.weixin.qq.com/s/example",
+                    mode="local",
+                )
+        assert seen_urls == [query_url], seen_urls
+        assert query_result.discovered == 1 and query_result.downloaded == 1
+        assert query_url in query_result.publication_markdown
+
     with patch.dict("os.environ", {}, clear=True):
         try:
             R2Config.from_env()

@@ -238,7 +238,11 @@ def normalize_dynamic_item(item: dict[str, Any]) -> dict[str, Any]:
     card = _decode_json(item.get("card"))
     desc_info = item.get("desc", {}) if isinstance(item.get("desc"), dict) else {}
     dynamic_id = desc_info.get("dynamic_id_str") or desc_info.get("dynamic_id") or item.get("id_str") or item.get("id") or ""
-    ts = _to_int(desc_info.get("timestamp"), 0)
+    # 时间戳双格式兼容（不猜测，缺失即空字符串）：
+    # - 新版聚合物动态（get_feed / get_my_dynamics_page）：秒级时间戳在
+    #   modules.module_author.pub_ts；
+    # - 旧版 space_history 卡片（get_my_dynamics）：在顶层 desc.timestamp。
+    ts = _to_int(author.get("pub_ts"), 0) or _to_int(desc_info.get("timestamp"), 0)
     published_at = datetime.fromtimestamp(ts).isoformat() if ts > 0 else ""
 
     text = desc.get("text", "")

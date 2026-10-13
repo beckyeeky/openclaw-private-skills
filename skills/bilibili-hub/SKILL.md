@@ -26,16 +26,22 @@ description: >
 
 ## File Structure
 
-```
-/var/minis/skills/bilibili-hub/
+```text
+{baseDir}/                          # 本技能目录（Minis 中为 /var/minis/skills/bilibili-hub）
 ├── SKILL.md
-├── pyproject.toml          # bilibili-api-python + aiohttp
-└── scripts/
-    ├── __init__.py
-    ├── exceptions.py       # 6 structured exception types
-    ├── payloads.py         # Data structure normalization (normalize_* functions)
-    └── client.py           # BiliClient core class (all API methods)
+├── pyproject.toml          # bilibili-api-python (>=17.4,<18) + aiohttp
+├── uv.lock                 # 锁定依赖（与 pyproject.toml 约束一致）
+├── env.sh                  # 可选：把 BILI_COOKIE 拆成 BILI_SESSDATA/BILI_JCT/... 分字段变量
+├── scripts/
+│   ├── __init__.py
+│   ├── exceptions.py       # 6 structured exception types
+│   ├── payloads.py         # Data structure normalization (normalize_* functions)
+│   └── client.py           # BiliClient core class (all API methods)
+└── tests/
+    └── test_contract.py    # 离线 mock 契约测试（公开方法返回规范 + 异常行为，无网络/无真实凭据）
 ```
+
+路径一律相对 `{baseDir}` 解析，不要假设固定的 checkout 路径。
 
 ---
 
@@ -71,23 +77,37 @@ me = client.validate_cookie()
 
 ### Environment setup
 
+在技能目录（`{baseDir}`，Minis 中为 `/var/minis/skills/bilibili-hub`）下执行：
+
 ```bash
-cd /var/minis/skills/bilibili-hub
+cd {baseDir}
 uv sync
 ```
+
+`pyproject.toml` 与 `uv.lock` 都固定在 `bilibili-api-python 17.4.x`（`>=17.4,<18`），
+代码中的所有 SDK 调用形态均按 17.4.2 的签名编写；不要依赖“任意最新版本”漂移。
+
+### Running the offline contract tests
+
+```bash
+cd {baseDir}
+python3 -m unittest discover -s tests -v
+```
+
+测试完全离线：SDK 符号与 `aiohttp` 会话都被替身接管，不需要 Cookie，也不会发起任何真实请求。
 
 ### Calling as a Python library
 
 ```python
-import os, json, sys
-sys.path.insert(0, "/var/minis/skills/bilibili-hub")
+import sys
+sys.path.insert(0, "{baseDir}")   # 替换为实际技能目录，如 /var/minis/skills/bilibili-hub
 from scripts.client import BiliClient
 
 client = BiliClient.from_env()
 
 # Current user information
 me = client.whoami()
-print("User:", me.get("name"), "UID:", me.get("mid"))
+print("User:", me.get("name"), "UID:", me.get("id"))
 
 # Search videos
 videos = client.search_videos("Python Tutorial", count=5)
@@ -98,6 +118,8 @@ for v in videos:
 detail = client.get_video("BV1xx411c7mD", subtitle=True)
 print(detail["video"]["title"])
 print(detail["subtitle"]["text"][:200])
+if detail["warnings"]:
+    print("degraded features:", detail["warnings"])
 
 # Popular videos
 hot = client.get_hot(count=10)
@@ -113,7 +135,8 @@ for v in hot:
 
 | Method | Description |
 |------|------|
-| `whoami()` | Get information about the currently logged-in user |
+| `whoami()` | Get information about the currently logged-in user (SDK `user.get_self_info`) |
+| `validate_cookie()` | Verify the current Cookie still works (same call as `whoami()`; raises `AuthenticationError` when missing/expired) |
 
 ### Video
 
@@ -122,6 +145,14 @@ for v in hot:
 | `get_video(bvid, *, subtitle, subtitle_timeline, ai_summary, comments, related)` | Get video details (optional subtitles/AI summary/comments/related videos) |
 
 `bvid` supports a BV number or full URL and is extracted automatically.
+
+`get_video` returns `video` / `subtitle` / `ai_summary` / `comments` / `related` / `warnings`.
+`comments=True` uses the comment **list** API (`comment.get_comments`). When an optional extra is
+requested and the interface call *succeeds* but carries no usable content (e.g. the AI-summary
+response has an empty `model_result.summary`), the payload keeps the empty value **and** appends an
+**observation** entry to `warnings` — it never asserts a reason the code cannot prove. Real failures
+raise a `BiliError` subclass instead of silently degrading, and no error code is interpreted as
+"this video has no AI summary".
 
 ### Users
 
@@ -142,11 +173,20 @@ for v in hot:
 | Method | Description |
 |------|------|
 | `get_hot(page=1, count=20)` | Site-wide popular videos |
-| `get_rank(day=3, count=50)` | Site-wide rankings (`day`: 1/3/7) |
-| `get_feed(offset=0)` | Following dynamics feed (login required) |
-| `get_my_dynamics(offset=0)` | Dynamics I published (login required) |
+| `get_rank(day=3, count=50)` | **Site-wide** video ranking (`RankType.All`). `day` is a **deprecated no-op** kept for call compatibility: the pinned SDK only passes `day` to the PGC (bangumi) chart, so the all-site chart ignores it and every `day` value returns the same data |
+| `get_feed(offset=None)` | Followed **dynamic items** feed (login required); returns the raw SDK dict with `items` / `offset` / `has_more` |
+| `get_my_dynamics(offset=0)` | Dynamics I published (login required), one page as a normalized list. **Legacy contract**: **int** cursor from the old `space_history` API (`cards` / `next_offset`) |
+| `get_my_dynamics_page(offset="")` | Independent **new** API (`polymer/web-dynamic/v1/feed/space`), **str** cursor: `{"items", "offset", "has_more"}` |
 | `post_dynamic(text)` | Post a text dynamic (login + `bili_jct` required) |
 | `delete_dynamic(dynamic_id)` | Delete a dynamic (login + `bili_jct` required) |
+
+Dynamic paging: `get_feed(offset=...)` and `get_my_dynamics_page(offset=...)` take the `offset`
+returned by the previous page (`None`, `0` and `""` all mean "first page"; string cursors are
+forwarded unchanged — they may be large integers that must not be re-parsed). `get_my_dynamics()`
+is a **separate legacy path** whose cursor is an **int** (`next_offset` of the old `space_history`
+API); the two cursor types are **not interchangeable**. `get_feed` returns **dynamic items**, not
+the list of followed UPs. `published_at` is filled from `modules.module_author.pub_ts` (new polymer
+items) or the legacy `desc.timestamp`, and stays `""` only when neither exists.
 
 ### Favorites / History
 
@@ -169,6 +209,8 @@ for v in hot:
 - DASH streams (common): download the video stream and audio stream separately -> merge with `ffmpeg copy` -> if merging fails, keep the silent video
 - FLV/MP4 streams (rare): download directly, no merging required
 - Without logging in, downloads are limited to 480P; after logging in, 1080P is available (premium members can download higher quality)
+
+### Interactions
 
 | Method | Description |
 |------|------|
@@ -210,5 +252,9 @@ except BiliError as e:
 - `SESSDATA` is the minimum requirement for read operations. Write operations (likes, coins, posting dynamics) also require `bili_jct`.
 - Cookies are usually valid for several days to several weeks. After they expire, retrieve them again through `browser_use get_cookies`.
 - Bilibili applies risk control to high-frequency requests (HTTP 412). An operation interval of at least 1 second is recommended.
+- Failures are surfaced, not swallowed: authentication/rate-limit/network/API errors raise the structured exceptions above. A legitimate empty result (no comments, no history, no subtitles) is returned as an empty value. For optional extras, `get_video(...)["warnings"]` may additionally carry an **observation** entry, and only when the interface call itself succeeded but contained no usable content (or no `cid` was available). Warnings **never** assert a reason the code cannot prove — e.g. no error code is treated as "this video has no AI summary"; the SDK-invented generic code `-1` is raised as an error like any other unexpected code.
+- `env.sh` is optional and only splits `BILI_COOKIE` into per-field variables for callers that need them; it no longer sets any TLS/SSL switch (the old `BILI_SSL_VERIFY=0` export had no consumer and was removed — TLS verification is never disabled by this skill).
+- Pinned dependency: `bilibili-api-python>=17.4,<18`. The calls in `scripts/client.py` follow 17.4.2 signatures (`comment.get_comments`, `Video.get_ai_conclusion(cid=...)`, `user.get_toview_list`, `dynamic.get_dynamic_page_info`, `User.get_dynamics(offset: int)`, `User.get_dynamics_new(offset: str)`, `rank.get_rank(type_=RankType.All)`); upgrading the SDK requires re-checking them against the new signatures.
+- The offline contract tests under `tests/` use mock stand-ins for most behaviour checks: they pin *this client's* contract under **assumed** response shapes and are **not** evidence of what Bilibili actually returns. Only the signature-compliance tests and the request-parameter snapshot test touch the real SDK (verifying call/request shape, still not real responses).
 - `bilibili-api-python` is a community-maintained reverse-engineering project, and its interfaces may break when Bilibili updates.
 - Write operations (coins, triple action, etc.) cannot be reversed. Use them with caution.

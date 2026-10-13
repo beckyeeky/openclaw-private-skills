@@ -61,6 +61,22 @@ python3 generate.py "a cat in space"
 
 ⚠️ Positional prompts appear in `ps` listings and shell history. Use stdin JSON instead.
 
+### Input limits
+
+Prompt text is validated on its **UTF-8 byte length** (max 64 KiB). The whole
+JSON document is read with a *bounded* read — 64 KiB prompt + 1 MiB overhead
+budget for `reference`/metadata fields — so a document that fits the budget is
+parsed in full and never truncated mid-parse.
+
+- A fully-read document whose prompt exceeds 64 KiB → `prompt_too_large`.
+- A document larger than the total budget is dropped at the cut **before**
+  parsing, so its prompt size cannot be determined → `input_too_large`, and the
+  caller must shrink the prompt **and/or** the other fields. That error text
+  never claims the prompt itself is within budget.
+- Prompts must be real UTF-8. An unpaired surrogate escape (e.g. `\ud800`)
+  cannot be encoded to UTF-8, so it is rejected as `invalid_input` instead of
+  crashing the script.
+
 ## Output
 
 The script prints a single JSON line to stdout:
@@ -208,17 +224,38 @@ TELEGRAM_BOT_TOKEN="xxx" python3 scripts/send_album.py \
 | Content filtered / other 4xx | **No retry** | 1 |
 | Network error | **No retry** | 1 |
 
-All retry counts include the initial attempt.
+All retry counts include the initial attempt. Credential failures
+(`no_auth` / `auth_invalid` / `auth_malformed` / `auth_unreadable`) are
+reported immediately: they never consume a retry and never produce a traceback.
 
 ## Error Codes
 
+`stdout` always carries one JSON object; every failure is one of these codes.
+
 | Code | Meaning | Action |
 |------|---------|--------|
-| `no_auth` | No Codex token in ~/.codex/auth.json | Run `codex login --device-auth` |
-| `auth_stale` | Token refresh chain broken | Run `codex login --device-auth` |
-| `http_429` | Rate limited | Wait and retry |
-| `invalid_input` | Bad JSON or no prompt | Check stdin format |
+| `no_auth` | No Codex credentials at `~/.codex/auth.json` (or the file holds no `tokens.access_token`) | Run `codex login --device-auth` |
+| `auth_invalid` | `auth.json` exists but is **not valid JSON** (corrupt) | Re-run `codex login --device-auth` to rewrite the file |
+| `auth_malformed` | `auth.json` parses but has an unexpected structure (not an object, `tokens` not an object, `access_token` not a string) | Re-run `codex login --device-auth` |
+| `auth_unreadable` | `auth.json` exists but cannot be read (I/O error, permissions, it is a directory) | Fix the file/permissions, then re-run `codex login --device-auth` |
+| `auth_stale` | Token refresh chain broken — all 3 attempts returned 401. (A refresh that leaves no token is a logged-out state: `no_auth`.) | Run `codex login --device-auth` |
+| `http_429` | Rate limited; retried with backoff (final exhaustion is reported as `max_retries`) | Wait and retry |
+| `invalid_input` | Bad JSON, no prompt, non-string `prompt`/`reference`, unreadable input, or a prompt/`reference` carrying an unpaired surrogate escape (not valid UTF-8) | Check stdin/`--prompt-file` format |
+| `input_too_large` | Document exceeds the bounded input budget and is dropped before parsing, so the prompt size is unknown | Shrink the prompt and/or the extra fields |
+| `prompt_too_large` | A fully-read document whose prompt exceeds 64 KiB of UTF-8 bytes | Shorten prompt |
 | `ref_not_found` | Reference file doesn't exist | Check path |
-| `ref_symlink` | Reference is a symlink | Pass real file |
-| `prompt_too_large` | >64 KiB prompt | Shorten prompt |
+| `ref_symlink` | Reference is a symlink (documented; see limitation below) | Pass real file |
+| `ref_too_large` | Reference image exceeds the 20 MB limit | Use a smaller reference |
+| `bad_mime` | Reference magic bytes are not a supported image type (PNG/JPEG/WEBP/GIF) | Pass a real image |
 | `save_failed` | Could not write output | Check disk space/permissions |
+
+Also emitted for API outcomes: `filtered` (safety system produced no image),
+`connection_error` (network failure, not retried), `max_retries` (all attempts
+exhausted — this is what 429/5xx exhaustion reports), and `http_<status>` for
+terminal 4xx statuses (403/404/…). Damaged credential
+files are reported as `auth_invalid` / `auth_malformed` / `auth_unreadable` —
+never as a plain logged-out state, and never with the token (or any part of the
+file) echoed back.
+
+**Known limitation:** reference paths are resolved before the symlink check, so
+`ref_symlink` is currently not reachable; symlinked reference paths are accepted.

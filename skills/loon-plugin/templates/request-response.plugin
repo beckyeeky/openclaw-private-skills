@@ -1,20 +1,21 @@
 #!name = Example Request+Response
-#!desc = 请求清洗 + 被动响应探针骨架；请替换真实 API 和 script-path
+#!desc = 请求清洗 + 被动响应探针骨架（Script V2，Loon 3.5.1 (983)+）；请替换真实 API 和脚本地址
 #!author = you
 #!homepage = https://github.com/USER/REPO
 #!icon = https://www.example.com/favicon.ico
 #!tag = example,script
 #!system = iOS,iPadOS,tvOS,macOS
-#!loon_version = 3.5.1(978)
+#!loon_version = 3.5.1(983)
+#!date = 2026-10-13
 #!type = normal
 
 [Argument]
-mode = select,"scrub","origin",tag=模式,desc=scrub=清洗 | origin=关闭
-notify = switch,true,tag=异常通知,desc=响应业务异常时通知
+mode = select,"scrub","origin",type=string,tag=模式,desc=scrub=清洗 | origin=关闭
+notify = switch,true,type=boolean,tag=异常通知,desc=响应业务异常时通知
 
 [Script]
-http-request ^https:\/\/api\.example\.com\/v1\/feed script-path=https://raw.githubusercontent.com/USER/REPO/main/scripts/example-request.js,requires-body=false,binary-body-mode=false,timeout=10,tag=Example Request,argument=[{mode}]
-http-response ^https:\/\/api\.example\.com\/v1\/feed script-path=https://raw.githubusercontent.com/USER/REPO/main/scripts/example-response.js,requires-body=true,binary-body-mode=false,timeout=10,tag=Example Observe,argument=[{notify}]
+request if ${url} ~= /^https:\/\/api\.example\.com\/v1\/feed/i && ${request.method} == "POST" then script("https://raw.githubusercontent.com/USER/REPO/main/scripts/example-request.js", {${mode}}) with tag="Example Request", requires_body=false
+response if ${url} ~= /^https:\/\/api\.example\.com\/v1\/feed/i && ${response.status} == 200 then script("https://raw.githubusercontent.com/USER/REPO/main/scripts/example-response.js", {${notify}}) with tag="Example Observe", timeout=20, requires_body=true
 
-[Mitm]
+[MitM]
 hostname = api.example.com

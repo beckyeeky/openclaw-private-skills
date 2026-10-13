@@ -1,15 +1,16 @@
 #!name = Example Rewrite V2 Reject
-#!desc = Loon 3.5.1 (978)+ 最小拒绝示例；请替换真实域名和路径
+#!desc = Loon 3.5.1 (978)+ 最小拒绝示例（request 阶段 + 位置参数）；请替换真实域名和路径
 #!author = you
 #!homepage = https://github.com/USER/REPO
 #!icon = https://www.example.com/favicon.ico
 #!tag = example,rewrite-v2
 #!system = iOS,iPadOS,tvOS,macOS
 #!loon_version = 3.5.1(978)
+#!date = 2026-10-13
 #!type = normal
 
 [Rewrite]
-http-request if ${url} ~= /^https?:\/\/api\.example\.com\/(?:ad|ads|splash)\// then reject(status=200, body="empty")
+request if ${url} ~= /^https?:\/\/api\.example\.com\/(?:ad|ads|splash)\// then reject_img(200)
 
-[Mitm]
+[MitM]
 hostname = api.example.com

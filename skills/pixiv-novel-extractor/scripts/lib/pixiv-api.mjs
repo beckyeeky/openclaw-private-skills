@@ -134,7 +134,7 @@ function getImageFallbackUrls(imageId, artworkId, originalUrl) {
   return Array.from(new Set(candidates.filter(Boolean)))
 }
 
-function resolveImagesFromEmbeddedData(images, embeddedData) {
+export function resolveImagesFromEmbeddedData(images, embeddedData) {
   if (!embeddedData || !images.length) {
     return images.map(image => ({
       ...image,

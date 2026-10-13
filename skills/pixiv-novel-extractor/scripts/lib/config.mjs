@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -6,6 +6,11 @@ import { maskToken } from './input.mjs'
 
 const CONFIG_DIRNAME = '.pixiv-novel-extractor'
 const CONFIG_FILENAME = 'config.json'
+
+// The config file holds a long-lived Pixiv refresh_token, so it must never be
+// group- or world-readable.
+export const CONFIG_DIR_MODE = 0o700
+export const CONFIG_FILE_MODE = 0o600
 
 export function getConfigPath(homeDir = homedir()) {
   return join(homeDir, CONFIG_DIRNAME, CONFIG_FILENAME)
@@ -27,10 +32,76 @@ export async function readConfig({ homeDir = homedir() } = {}) {
   }
 }
 
-export async function writeConfig(config, { homeDir = homedir() } = {}) {
+/**
+ * Force `mode` on a credential path and verify it actually took effect.
+ *
+ * `writeFile(..., { mode })` and `mkdir(..., { mode })` only apply at creation
+ * time and are masked by umask, so an existing 0644 config file would silently
+ * stay world-readable. This helper never swallows a failure: if the mode cannot
+ * be set or cannot be verified, it throws so the caller can never report a
+ * successful "saved" while the token is exposed.
+ */
+async function restrictPermissions(targetPath, mode, label, { chmodImpl = chmod, statImpl = stat } = {}) {
+  try {
+    await chmodImpl(targetPath, mode)
+  } catch (error) {
+    const detail = error?.code || error?.message || error
+    throw new Error(
+      `Refusing to store Pixiv credentials: could not restrict permissions of ${label} ${targetPath} to ${mode.toString(8)} (${detail}). The file permissions are NOT secured, so the refresh_token could be readable by other local users.`
+    )
+  }
+
+  let info
+  try {
+    info = await statImpl(targetPath)
+  } catch (error) {
+    const detail = error?.code || error?.message || error
+    throw new Error(`Refusing to store Pixiv credentials: could not verify permissions of ${label} ${targetPath} (${detail})`)
+  }
+
+  const actualMode = info.mode & 0o777
+  if (actualMode !== mode) {
+    throw new Error(
+      `Refusing to store Pixiv credentials: ${label} ${targetPath} has mode ${actualMode.toString(8)} instead of ${mode.toString(8)}`
+    )
+  }
+}
+
+export async function writeConfig(
+  config,
+  { homeDir = homedir(), chmodImpl = chmod, statImpl = stat } = {}
+) {
   const configPath = getConfigPath(homeDir)
-  await mkdir(dirname(configPath), { recursive: true })
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+  const configDir = dirname(configPath)
+  const fsOverrides = { chmodImpl, statImpl }
+
+  await mkdir(configDir, { recursive: true, mode: CONFIG_DIR_MODE })
+  await restrictPermissions(configDir, CONFIG_DIR_MODE, 'config directory', fsOverrides)
+
+  // Detect an existing file before writing: `mode` at write time does not
+  // change permission bits of a file that already exists.
+  let exists = true
+  try {
+    await statImpl(configPath)
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      exists = false
+    } else {
+      throw new Error(`Failed to inspect Pixiv config: ${error?.message || error}`)
+    }
+  }
+
+  if (exists) {
+    // Tighten before the new secret is written; a failure aborts the write.
+    await restrictPermissions(configPath, CONFIG_FILE_MODE, 'existing config file', fsOverrides)
+  }
+
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, {
+    encoding: 'utf8',
+    mode: CONFIG_FILE_MODE,
+  })
+  await restrictPermissions(configPath, CONFIG_FILE_MODE, 'config file', fsOverrides)
+
   return configPath
 }
 
