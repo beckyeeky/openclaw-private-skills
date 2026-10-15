@@ -67,9 +67,18 @@ textAndDecorations.flattened.decorations[]
 
 ## Public URL → origin id
 
-Unauthenticated HTML for a WSJ article URL often includes the origin id as:
+Resolution is handled by `scripts/resolve_origin_id.py` (browser-rendered public
+metadata only):
 
-- `"articleId":"SB…"`
-- bare `SB\d{20,}`
+- only `__NEXT_DATA__.props.pageProps.articleData` is inspected;
+- its `sourceUrl`/`canonicalUrl` must match the requested article path;
+- `originId` and `articleTrackingMeta.articleId` must agree when both exist;
+- absence of that dedicated object is rejected, even if another script has a
+  single related-story `articleId`;
+- a `/webview/<origin id>` URL supplies the id directly.
 
-Use only to resolve the id the user already opened; then fetch `ArticleContent` with their token. Do not scrape full article HTML as a substitute for the entitled API body.
+Related/recommended stories carry their own `originId`/`articleId` values, so no
+"first match in the HTML" or "most frequent `SB…`" heuristic is used: an
+ambiguous result stops the run instead of guessing. Fetch the body only
+afterwards, with the user's token, through `ArticleContent` — never scrape
+article HTML as a substitute for the entitled API body.

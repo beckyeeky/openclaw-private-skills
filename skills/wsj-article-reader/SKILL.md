@@ -9,7 +9,7 @@ description: >-
 license: MIT
 metadata:
   hermes:
-    version: 0.2.0
+    version: 0.3.0
     author: beckyeeky
     category: media
     tags: [wsj, dow-jones, article, graphql, archive, reading]
@@ -119,7 +119,8 @@ Runtime state and exported articles:
   articles/
 ```
 
-Override the runtime root with `WSJ_READER_HOME` if needed.
+Override the runtime root with `WSJ_READER_HOME` if needed. Optionally point
+`WSJ_CA_BUNDLE` at a local extra PEM CA bundle (additive only; see step 3a).
 
 ## Observed API scope
 
@@ -167,6 +168,30 @@ block types and Markdown mapping.
 - Check credential presence without revealing it.
 - State when an article is unavailable due to entitlement; never promise access.
 
+### 1a. Resolve the origin id automatically
+
+Prefer letting the user supply only the article URL. For ordinary WSJ article
+URLs the fetch helper calls the bundled browser metadata resolver first:
+
+```sh
+python3 {baseDir}/scripts/resolve_origin_id.py 'https://www.wsj.com/…'
+```
+
+The resolver reads only `__NEXT_DATA__.props.pageProps.articleData`, not other
+scripts or related-story objects. Its `sourceUrl`/`canonicalUrl` must match the
+requested path; `originId` and `articleTrackingMeta.articleId` must agree when
+both exist. Missing dedicated data is rejected. A `/webview/<origin id>` URL
+supplies the id directly, without a browser.
+If the browser CLI is unavailable, the run fails with an explicit message and no
+authorized request is sent — pass `--origin-id` only when you already have one.
+
+Metadata access is public and unauthenticated. An HTTP `401`/`403` seen while
+reading **public page metadata** is not an authenticated `ArticleContent`
+entitlement result, and a single ordinary browser navigation is allowed to read
+it. Do not solve challenges, rotate proxies, or read restricted article bodies.
+A `401`/`403`/`429` from the **authorized** `ArticleContent` request remains
+final (see the failure table).
+
 ### 2. Ensure template exists
 
 If `~/.openclaw/wsj-article-reader/template.json` is missing, copy the bundled
@@ -178,7 +203,7 @@ example or run `build_template.py` on a fresh local `ArticleContent` capture.
 # By origin id
 python3 {baseDir}/scripts/fetch_article.py --origin-id 'SB…'
 
-# By WSJ URL (resolves public articleId / SB… marker, then one ArticleContent call)
+# By WSJ URL (browser metadata resolver first, then one ArticleContent call)
 python3 {baseDir}/scripts/fetch_article.py --url 'https://www.wsj.com/…'
 
 # Offline parse of an already-authorized JSON response (no network)
@@ -190,14 +215,85 @@ Flags:
 | Flag | Meaning |
 |---|---|
 | `--allow-once` | Bypass only the 15-minute local cooldown for one interactive run |
+| `--network-retries N` | Bounded retries for transient transport faults only (`0`–`2`, default `0`) |
+| `--insecure` | Disable TLS certificate/hostname verification for this run only; explicit user request required |
 | `--print-md` | Print saved Markdown to stdout after write |
 
-The helper is single-request, single-threaded and applies a randomized 2–6
-second preflight wait plus local cooldown/hour/day limits. It makes no retry,
-polling, recommendation, analytics, or prefetch calls. URL resolution may
-perform **one** unauthenticated GET of the public article HTML solely to read
-`articleId` / `SB…`; it does not use HTML as the article body. See
+The helper fetches one article serially, with a randomized 2–6 second preflight
+wait and local cooldown/hour/day limits. Retries are off by default; explicitly
+selected bounded retries cover transient connection and response-read faults
+(including truncated transfers) for the idempotent GET only. HTTP errors and TLS
+failures are never retried. Authorized redirects are refused without a second
+request. No polling, recommendation, analytics, or prefetch calls are made. URL resolution is done by
+the browser metadata resolver described in step 1a and sends no authorized
+request of its own. See
 [`references/behavior-policy.md`](references/behavior-policy.md).
+
+### 3a. TLS trust and safe diagnostics
+
+HTTPS certificate and hostname verification are enabled by default with
+`ssl.create_default_context()`. Only an explicitly authorized `--insecure` flag
+can disable them for one invocation (see 3b); no error enables that flag.
+
+- If local trust is incomplete, fix it with a valid CA or device/proxy settings.
+  Never disable verification automatically after a handshake error.
+- An explicit extra CA may be supplied with `WSJ_CA_BUNDLE=/path/to/extra-ca.pem`.
+  It is **appended** to the system trust store (`load_verify_locations`), never
+  substituted for it, and hostname verification stays enabled. A missing,
+  unreadable, empty (for example a 0-byte file), non-PEM, or unparsable bundle
+  aborts the run **before any request is sent** (and before any local rate-limit
+  slot is consumed).
+- Transport failures are reported only as fixed safe categories: the diagnostic
+  text never includes the token, the request URL/query, or headers.
+
+| Reported category | Meaning | What to do |
+|---|---|---|
+| `tls_certificate_untrusted` | Certificate chain not verifiable against local trust (unknown issuer / missing intermediate) | Fix local TLS trust, then start **one new request manually** |
+| `tls_handshake_failed` | Handshake failed for a non-trust reason (protocol/cipher/reset) | Check the device TLS stack/proxy, then start one new request manually |
+| `network_timeout` / `network_error` | Could not reach the endpoint | Re-run later; only transient transport faults qualify for explicit bounded retries |
+
+Retries are disabled by default. Explicit `--network-retries N` allows at most
+N additional attempts for temporary transport faults; HTTP and TLS failures
+remain final. Truncated body reads report `network_body_interrupted`, and
+transport records include `connect` or `body` phase without response text.
+
+### 3b. Explicit, single-run opt-outs (never defaults)
+
+Both options below are per-invocation flags only. They are never read from an
+environment variable, never written to `state.json`/`template.json`, and never
+enabled automatically as a reaction to an error.
+
+| Option | Allowed use | Hard rules |
+|---|---|---|
+| `--insecure` | Only when the user explicitly asks for one run despite the risk | No `--insecure` default anywhere; warning printed on stderr contains no token/URL; a certificate failure never triggers it; the hourly/day limits still apply |
+| `--network-retries N` | Only to absorb transient transport faults in one run (`N` = 0–2, default 0) | Retries **only** temporary timeouts, resets and truncated reads during connection or response-body transfer for the idempotent GET, plus temporary DNS failures; never TLS verification or TLS handshake errors, never any HTTP status (401/403/429/5xx included), never entitlement/schema rejections; every real attempt is recorded and counted against the hour/day limits; the interactive cooldown gates only the first attempt of the run; waits stay short and sequential (no burst), and `N` is rejected out of range before any request |
+
+`--insecure` risk: the certificate chain and hostname are not verified, so the
+connection can be intercepted or modified, and the access token would be sent
+to whoever answers. It is a last-resort, user-authorized diagnostic step, not a
+fix — the correct remedy for `tls_certificate_untrusted` is repairing local TLS
+trust.
+
+Field note (2026-10): the content endpoint and the `GET` + token + template path
+were confirmed working end to end once the device's TLS trust was corrected
+(TLSv1.3 handshake completed, full article exported). The earlier failure was an
+environment trust-store problem (`unable to get local issuer`), not an endpoint,
+method, or token problem — so do not change the HTTP method or bypass
+verification to "fix" TLS. TLS is fixed on the device/proxy first; the request
+is then issued once, manually.
+
+### 3c. Verify locally first (offline)
+
+```sh
+python3 {baseDir}/scripts/tests/test_wsj_reader_safety.py
+```
+
+These tests are fully offline: they cover TLS error classification and
+redaction, invalid/empty CA-bundle preflight, preserved default verification,
+the explicit `--insecure` opt-in (flag-only, bounded, never automatic),
+`--network-retries` bounds and stop conditions, the URL → resolver integration
+(including "browser unavailable" and "never take a recommended-story id"), and
+the unchanged Markdown body parsing.
 
 ### 4. Save and present
 
@@ -241,19 +337,33 @@ only at the user's request. Preserve attribution and link to the original.
 | Result | Action |
 |---|---|
 | Missing `WSJ_DJ_AUTHORIZATION` | Request private local setup; never ask for it in chat. |
-| 401 / 403 / entitlement denied | Stop; ask the user to reauthenticate in WSJ or refresh their own token. |
+| `tls_certificate_untrusted` / `tls_handshake_failed` | Report the fixed category only; fix local TLS trust first, then start one new request manually. Never automatically disable verification. |
+| Invalid/empty `WSJ_CA_BUNDLE` | Report the preflight error; export a valid PEM chain or unset the variable. No request was sent. |
+| `--network-retries` out of range (below 0 or above 2) | Reject before any request; never silently clamp. |
+| Transient fault with `--network-retries N` | Retry only connect/read timeout, truncated response body, temporary DNS failure or connection reset, up to `N` extra attempts, each recorded and rate-limited; stop when exhausted. |
+| 401 / 403 / entitlement denied (authorized request) | Final result; stop. Ask the user to reauthenticate in WSJ or refresh their own token. |
+| 429 rate limit | Stop; no retry, no alternate endpoint. |
 | Persisted query rejected | Rebuild template from a newly captured `ArticleContent` request. |
 | Response schema changed | Save no raw sensitive response; update parser only after a user-authorized sample. |
-| Rate limit / local cooldown | Stop and wait; do not retry aggressively. |
-| URL origin id not found | Ask for `--origin-id` from the app or a fresher URL. |
+| Local cooldown / rate limit | Stop and wait; do not retry aggressively. |
+| Browser metadata resolution failed | Report the resolver error (browser unavailable or ambiguous metadata); do not substitute a recommended-story id. Ask for `--origin-id` only as a last resort. |
 
 ## Agent checklist
 
 1. `[ -n "$WSJ_DJ_AUTHORIZATION" ]` → if missing, send env deep link; stop.
 2. Ensure `template.json` (copy example or `build_template.py`).
-3. Run `fetch_article.py` once with `--url` or `--origin-id`.
-4. Read the saved Markdown; summarize or translate only if asked.
-5. On auth/template failure, stop; do not probe other operations.
+3. If `WSJ_CA_BUNDLE` is set, confirm it is a valid PEM bundle; an invalid or
+   0-byte file aborts before any request.
+4. Run `fetch_article.py` once with `--url` (browser resolver) or `--origin-id`.
+5. On `tls_*` categories: report the category only, fix device TLS trust, then
+   start one new request manually. Never automatically disable verification, never retry
+   automatically.
+6. Use `--insecure` only if the user explicitly asks for a single diagnostic
+   run; never persist it and never let a certificate failure switch it on.
+7. Use `--network-retries` (max 2) only for transient transport faults; it must
+   not be used to retry HTTP or TLS failures.
+8. Read the saved Markdown; summarize or translate only if asked.
+9. On auth/template failure, stop; do not probe other operations.
 
 ## Non-goals
 

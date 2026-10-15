@@ -7,23 +7,50 @@ user runtime directory, never under the installed skill or Git repository.
 
 Supports:
   --origin-id SB… / WP-WSJ-…
-  --url https://www.wsj.com/...   (resolves public articleId / SB… then fetches)
+  --url https://www.wsj.com/...   (browser metadata resolver first, then one fetch)
   --from-json path                (offline parse of an already-authorized response)
+
+TLS: by default the request uses the system trust store with certificate and
+hostname verification always on. An explicit local extra CA may optionally be
+appended through WSJ_CA_BUNDLE (never substituted); an unreadable, empty, or
+malformed bundle fails before any request is sent. ``--insecure`` disables
+verification for one explicitly requested run only — never automatically,
+never persistently, and never as a reaction to a certificate error. TLS/network
+failures are reported only as fixed safe categories without tokens, request
+URLs, or headers. ``--network-retries`` (0-2, default 0) retries only connect
+timeouts, temporary DNS failures, and connection resets; every real attempt
+consumes the hourly/daily budget and is recorded.
 """
 from __future__ import annotations
 
 import argparse
+import errno
 import datetime as dt
+from http.client import IncompleteRead
 import json
 import os
 import random
 import re
+import socket
+import ssl
+import subprocess
 import sys
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlparse
+from urllib.request import HTTPSHandler, HTTPRedirectHandler, Request, build_opener
+
+
+class RefuseRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def urlopen(req, timeout=45, context=None):
+    """One authorized request; never forward credentials through redirects."""
+    return build_opener(RefuseRedirects(), HTTPSHandler(context=context)).open(req, timeout=timeout)
+
 
 ROOT = Path(os.environ.get("WSJ_READER_HOME", "~/.openclaw/wsj-article-reader")).expanduser()
 TEMPLATE = ROOT / "template.json"
@@ -32,9 +59,52 @@ ARTICLES = ROOT / "articles"
 HOUR_LIMIT, DAY_LIMIT, MIN_GAP = 6, 20, 15 * 60
 ENDPOINT_ALLOWED = "https://shared-data.dowjones.io/gateway/graphql"
 ORIGIN_RE = re.compile(r"^(?:SB\d{10,}|WP-WSJ[O0-9A-Z-]*-\d+)$", re.I)
-SB_IN_TEXT_RE = re.compile(r"\bSB\d{20,}\b")
-ARTICLE_ID_JSON_RE = re.compile(r'"articleId"\s*:\s*"(SB\d{10,}|WP-WSJ[^"]+)"')
 WSJ_HOST_RE = re.compile(r"(?:^|\.)wsj\.com$", re.I)
+CA_BUNDLE_ENV = "WSJ_CA_BUNDLE"
+RESOLVER = Path(__file__).resolve().parent / "resolve_origin_id.py"
+MAX_NETWORK_RETRIES = 2
+RETRY_METHODS = frozenset({'GET'})
+
+# Explicit opt-in only (--insecure). Never enabled by an environment variable,
+# a config file, or automatically after a certificate failure.
+INSECURE_WARNING = (
+    "WARNING: --insecure was requested explicitly for this single run. TLS "
+    "certificate and hostname verification are DISABLED for this request only; "
+    "the connection can be intercepted or modified. This is never automatic, "
+    "never persistent, and it is not used to recover from a certificate error. "
+    "Fixing local TLS trust is the correct remedy."
+)
+
+# Fixed, non-sensitive TLS/network reporting. Messages must never be built from
+# exception text (which can carry a URL/host), tokens, or request headers.
+TLS_CERT_UNTRUSTED = "tls_certificate_untrusted"
+TLS_HANDSHAKE_FAILED = "tls_handshake_failed"
+NETWORK_ERROR = "network_error"
+NETWORK_TIMEOUT = "network_timeout"
+
+NETWORK_MESSAGES = {
+    TLS_CERT_UNTRUSTED: (
+        "TLS category: tls_certificate_untrusted — the server certificate chain "
+        "could not be verified against the local trust store (for example an "
+        "unknown issuer or a missing intermediate). Fix local TLS trust first, "
+        "then start one new request manually. Verification is never relaxed "
+        "automatically and this category is never retried."
+    ),
+    TLS_HANDSHAKE_FAILED: (
+        "TLS category: tls_handshake_failed — the TLS handshake failed for a "
+        "reason other than certificate trust (protocol, cipher, or connection "
+        "reset). Fix the local TLS setup first, then start one new request "
+        "manually. This category is never retried."
+    ),
+    NETWORK_TIMEOUT: (
+        "Network category: network_timeout — the request timed out before a "
+        "response arrived."
+    ),
+    NETWORK_ERROR: (
+        "Network category: network_error — the request could not reach the "
+        "content endpoint (name resolution, routing, or a dropped connection)."
+    ),
+}
 
 
 def die(message: str, code: int = 1) -> None:
@@ -66,6 +136,174 @@ def save_json(path: Path, value) -> None:
 
 def parse_time(v: str) -> dt.datetime:
     return dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+
+
+def precheck_ca_bundle(path: Path) -> ssl.SSLContext:
+    """Validate a user-supplied extra CA bundle *before* any request is sent.
+
+    Rejects missing, unreadable, empty, non-PEM, and unparsable files. Returns a
+    throwaway context only to prove the bundle loads; the caller builds the real
+    context. Certificate verification is never weakened here.
+    """
+    if not path.exists():
+        die(f"{CA_BUNDLE_ENV} points to a missing file: {path}")
+    if not path.is_file():
+        die(f"{CA_BUNDLE_ENV} is not a regular file: {path}")
+    try:
+        size = path.stat().st_size
+    except OSError:
+        die(f"{CA_BUNDLE_ENV} could not be inspected: {path}")
+    if size == 0:
+        die(
+            f"{CA_BUNDLE_ENV} is empty (0 bytes): {path}. Export the CA "
+            "certificate chain as PEM text before retrying."
+        )
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        die(f"{CA_BUNDLE_ENV} is not readable: {path}")
+    if b"-----BEGIN CERTIFICATE-----" not in raw or b"-----END CERTIFICATE-----" not in raw:
+        die(
+            f"{CA_BUNDLE_ENV} is not a PEM certificate bundle: {path}. "
+            "A DER/binary or truncated file cannot be used."
+        )
+    probe = ssl.create_default_context()
+    try:
+        probe.load_verify_locations(cafile=str(path))
+        added = probe.cert_store_stats().get("x509", 0)
+    except (ssl.SSLError, OSError, ValueError):
+        die(
+            f"{CA_BUNDLE_ENV} could not be parsed as a certificate bundle: {path}. "
+            "Re-export it and retry."
+        )
+    if added <= 0:
+        die(f"{CA_BUNDLE_ENV} contains no usable certificate: {path}")
+    return probe
+
+
+def explicit_insecure_context() -> ssl.SSLContext:
+    """Unverified context, reachable only through the explicit ``--insecure`` flag.
+
+    This function is the single place in the file that touches
+    ``verify_mode``/``check_hostname``. It is never called from error handling,
+    so a certificate failure can never downgrade verification on its own.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def safe_tls_context(insecure: bool = False) -> ssl.SSLContext:
+    """Build the HTTPS context: system CAs + optional WSJ_CA_BUNDLE, verification on.
+
+    Uses ``create_default_context`` (so the platform trust store stays in
+    effect) and only *appends* an explicit local bundle via
+    ``load_verify_locations``. Verification is disabled only when the caller
+    passes ``insecure=True``, which happens solely for the explicit
+    ``--insecure`` flag; there is no environment variable or automatic path to
+    an unverified context.
+    """
+    if insecure:
+        print(INSECURE_WARNING, file=sys.stderr)
+        return explicit_insecure_context()
+    ctx = ssl.create_default_context()
+    extra = (os.environ.get(CA_BUNDLE_ENV) or "").strip()
+    if extra:
+        path = Path(extra).expanduser()
+        precheck_ca_bundle(path)  # fails before any network activity
+        try:
+            ctx.load_verify_locations(cafile=str(path))
+        except (ssl.SSLError, OSError, ValueError):
+            die(
+                f"{CA_BUNDLE_ENV} could not be loaded into the TLS context: {path}. "
+                "No request was sent."
+            )
+    if ctx.verify_mode != ssl.CERT_REQUIRED or not ctx.check_hostname:
+        die("Refusing to continue without full TLS certificate verification.")
+    return ctx
+
+
+def classify_network_error(exc: BaseException) -> tuple[str, str]:
+    """Map a transport failure to a fixed (category, message) pair.
+
+    The returned text is assembled from constants only, so no token, request
+    URL, query string, header, or raw exception text can leak into output.
+    """
+    reason = getattr(exc, "reason", exc)
+    seen = set()
+    while isinstance(reason, BaseException) and id(reason) not in seen:
+        seen.add(id(reason))
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            return TLS_CERT_UNTRUSTED, NETWORK_MESSAGES[TLS_CERT_UNTRUSTED]
+        if isinstance(reason, ssl.SSLError):
+            return TLS_HANDSHAKE_FAILED, NETWORK_MESSAGES[TLS_HANDSHAKE_FAILED]
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            return NETWORK_TIMEOUT, NETWORK_MESSAGES[NETWORK_TIMEOUT]
+        nxt = getattr(reason, "reason", None)
+        if nxt is None or nxt is reason:
+            break
+        reason = nxt
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return NETWORK_TIMEOUT, NETWORK_MESSAGES[NETWORK_TIMEOUT]
+    return NETWORK_ERROR, NETWORK_MESSAGES[NETWORK_ERROR]
+
+
+RETRYABLE_DNS_CODES = frozenset(
+    {getattr(socket, "EAI_AGAIN", -3), getattr(socket, "EAI_FAIL", -4)}
+)
+RETRYABLE_OS_ERRORS = frozenset(
+    {errno.ECONNRESET, errno.EPIPE, errno.ECONNABORTED, errno.ETIMEDOUT}
+)
+
+
+def is_retryable_transport_error(exc: BaseException) -> bool:
+    """True only for connect timeouts, temporary DNS failures, connection resets.
+
+    Everything else is final: TLS verification errors and other TLS failures,
+    HTTP errors of any status (401/403/429/5xx included), entitlement results,
+    and schema/template rejections are never retried.
+    """
+    reason = getattr(exc, "reason", exc)
+    seen = set()
+    while isinstance(reason, BaseException) and id(reason) not in seen:
+        seen.add(id(reason))
+        if isinstance(reason, ssl.SSLError):
+            # Covers SSLCertVerificationError and every other handshake failure.
+            return False
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            return True
+        if isinstance(reason, socket.gaierror):
+            return reason.errno in RETRYABLE_DNS_CODES
+        if isinstance(reason, ConnectionResetError):
+            return True
+        if isinstance(reason, OSError):
+            return reason.errno in RETRYABLE_OS_ERRORS
+        nxt = getattr(reason, "reason", None)
+        if nxt is None or nxt is reason:
+            break
+        reason = nxt
+    return False
+
+
+def validate_network_retries(value: int) -> int:
+    if not isinstance(value, int) or value < 0:
+        die("--network-retries must be 0 or greater; no request was sent.")
+    if value > MAX_NETWORK_RETRIES:
+        die(
+            f"--network-retries is capped at {MAX_NETWORK_RETRIES}; "
+            "no request was sent."
+        )
+    return value
+
+
+def attempt_note(attempts: int, retries: int) -> str:
+    if attempts <= 1:
+        return " No automatic retry was performed."
+    return (
+        f" {attempts} attempts were made in this run under "
+        f"--network-retries={retries}."
+    )
 
 
 def validate_template(t: dict) -> None:
@@ -105,11 +343,11 @@ def allowed(state: dict, override_wait: bool) -> None:
             )
 
 
-def record(state: dict, article_id: str, status) -> None:
-    # No title, URL, headers, token, query values, or response text.
-    state.setdefault("attempts", []).append(
-        {"at": iso(), "id": str(article_id)[-12:], "status": status}
-    )
+def record(state: dict, article_id: str, status, phase=None) -> None:
+    entry = {"at": iso(), "id": str(article_id)[-12:], "status": status}
+    if phase:
+        entry["phase"] = phase
+    state.setdefault("attempts", []).append(entry)
     state["attempts"] = state["attempts"][-100:]
     save_json(STATE, state)
 
@@ -424,79 +662,59 @@ def normalize_origin_id(value: str) -> str:
     die(f"Unrecognized origin id format: {v[:40]}")
 
 
-def resolve_origin_from_url(url: str) -> str:
-    """Resolve origin id from a user-supplied WSJ article URL via public HTML markers."""
-    url = url.strip()
+def resolve_origin_via_browser(url: str) -> str:
+    """Resolve the *current* article's origin id from public rendered metadata.
+
+    Delegates to the bundled resolver, which reads only the page's canonical URL
+    and its own ``articleId`` metadata. Related/recommended stories carry their
+    own ids, so this helper never falls back to "first id anywhere in the HTML".
+    If the browser CLI is unavailable or metadata is ambiguous, it fails loudly
+    and no authorized request is made.
+    """
+    url = (url or "").strip()
     if not url.startswith("http"):
         die("URL must start with http(s)://")
-    from urllib.parse import urlparse
-
     host = urlparse(url).hostname or ""
     if not WSJ_HOST_RE.search(host):
         die("URL host is not wsj.com")
-
-    # Try a short list of ordinary browser UAs. Some edges return 401 to
-    # non-browser clients; this still only reads public articleId markers.
-    user_agents = [
-        (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
-        ),
-        (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        ),
-        (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-        ),
-    ]
-    html = ""
-    last_err = None
-    for ua in user_agents:
-        req = Request(
-            url,
-            headers={
-                "User-Agent": ua,
-                "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Cache-Control": "no-cache",
-            },
-            method="GET",
+    if not RESOLVER.exists():
+        die(
+            "Browser metadata resolver is missing from this skill: "
+            f"{RESOLVER.name}. Reinstall the skill or pass --origin-id."
         )
-        try:
-            with urlopen(req, timeout=30) as r:
-                html = r.read(600_000).decode("utf-8", errors="replace")
-            if html:
-                break
-        except HTTPError as e:
-            last_err = e.code
-            continue
-        except URLError:
-            last_err = 0
-            continue
-    if not html:
-        if last_err:
-            die(
-                f"Could not open article URL (HTTP {last_err}) to resolve origin id. "
-                "Pass --origin-id from the WSJ app capture instead."
-            )
-        die("Network failure while resolving origin id from URL.")
-
-    m = ARTICLE_ID_JSON_RE.search(html)
-    if m:
-        return normalize_origin_id(m.group(1))
-    ms = SB_IN_TEXT_RE.findall(html)
-    if ms:
-        # Prefer the most frequent SB id
-        from collections import Counter
-
-        oid, _ = Counter(ms).most_common(1)[0]
-        return normalize_origin_id(oid)
-    die(
-        "Could not find an origin id in the article page. "
-        "Pass --origin-id from the app capture, or refresh the URL."
-    )
+    # The resolver reads public metadata only: never hand it the access token.
+    child_env = dict(os.environ)
+    child_env.pop("WSJ_DJ_AUTHORIZATION", None)
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(RESOLVER), url],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=child_env,
+        )
+    except FileNotFoundError:
+        die("Could not start the browser metadata resolver (no local python3).")
+    except subprocess.TimeoutExpired:
+        die(
+            "Browser metadata resolution timed out; the browser was unavailable "
+            "or did not finish loading. Re-run later and pass --origin-id if you "
+            "already have one. No authorized request was sent."
+        )
+    if proc.returncode != 0:
+        lines = [ln.strip() for ln in (proc.stderr or "").splitlines() if ln.strip()]
+        reason = lines[-1] if lines else "no diagnostic output"
+        die(
+            "Could not resolve an origin id from public metadata: "
+            f"{reason}\n"
+            "The built-in browser may be unavailable, or the page exposed no "
+            "unambiguous current-article id. Related/recommended-story ids are "
+            "deliberately not used. No authorized request was sent."
+        )
+    lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
+    if not lines:
+        die("Browser metadata resolver returned no origin id; no request was sent.")
+    return normalize_origin_id(lines[-1])
 
 
 def extract_article_from_response(payload: dict) -> dict:
@@ -553,42 +771,83 @@ def build_request(template: dict, origin_id: str) -> tuple[str, dict]:
     return url, headers
 
 
-def fetch_remote(template: dict, origin_id: str, allow_once: bool) -> dict:
+def fetch_remote(
+    template: dict,
+    origin_id: str,
+    allow_once: bool,
+    context: ssl.SSLContext | None = None,
+    network_retries: int = 0,
+) -> dict:
     if not os.environ.get("WSJ_DJ_AUTHORIZATION"):
         die("WSJ_DJ_AUTHORIZATION is not set.")
-    state = load_json(STATE, {"attempts": []})
-    allowed(state, allow_once)
-    # Intentional small non-deterministic pacing; no retry/polling/burst.
-    time.sleep(random.uniform(2, 6))
+    retries = validate_network_retries(network_retries)
+    ctx = context or safe_tls_context()
     url, headers = build_request(template, origin_id)
-    try:
-        with urlopen(Request(url, headers=headers, method="GET"), timeout=45) as r:
-            status, raw = r.status, r.read()
-    except HTTPError as e:
-        record(state, origin_id, e.code)
-        die(f"WSJ returned HTTP {e.code}; stopped without retry.")
-    except URLError:
-        record(state, origin_id, 0)
-        die("Network failure; stopped without retry.")
-    record(state, origin_id, status)
-    if status != 200:
-        die(f"Unexpected HTTP {status}; stopped.")
-    # Response may be plain JSON (capture) or compressed by urllib already.
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        die("Response was not JSON; stopped.")
-    return payload
+    attempts = 0
+    while True:
+        attempts += 1
+        # Reload per attempt: every real attempt consumes the hourly/daily budget.
+        state = load_json(STATE, {"attempts": []})
+        # The interactive cooldown gates the first attempt only; explicit retries
+        # in the same run are not blocked by it, but still respect the limits.
+        allowed(state, override_wait=allow_once or attempts > 1)
+        # Pacing on the first attempt, then a short bounded backoff. No burst.
+        time.sleep(random.uniform(2, 6) if attempts == 1 else random.uniform(3, 6))
+        phase = 'connect'
+        try:
+            with urlopen(
+                Request(url, headers=headers, method="GET"), timeout=45, context=ctx
+            ) as r:
+                status = r.status
+                phase = 'body'
+                raw = r.read()
+        except HTTPError as e:
+            # Publisher access decisions and every other HTTP status are final.
+            record(state, origin_id, e.code)
+            if 300 <= e.code < 400:
+                die(f"WSJ returned HTTP {e.code} (redirect); credentials are never re-sent and no second request was made.")
+            if e.code in (401, 403):
+                die(
+                    f"WSJ returned HTTP {e.code} (authorization or entitlement "
+                    "denied); stopped without retry."
+                )
+            if e.code == 429:
+                die("WSJ returned HTTP 429 (rate limited); stopped without retry.")
+            die(f"WSJ returned HTTP {e.code}; stopped without retry.")
+        except IncompleteRead:
+            record(state, origin_id, 'network_body_interrupted', phase)
+            if attempts <= retries:
+                continue
+            die('Network category: network_body_interrupted — response transfer was truncated.' + attempt_note(attempts, retries))
+        except (URLError, ssl.SSLError, OSError) as e:
+            category, message = classify_network_error(e)
+            record(state, origin_id, category, None if category in (TLS_CERT_UNTRUSTED, TLS_HANDSHAKE_FAILED) else phase)
+            retryable = is_retryable_transport_error(e)
+            if retryable and attempts <= retries:
+                continue
+            die(message + attempt_note(attempts, retries))
+        record(state, origin_id, status)
+        if status != 200:
+            die(f"Unexpected HTTP {status}; stopped.")
+        # Response may be plain JSON (capture) or compressed by urllib already.
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            die("Response was not JSON; stopped.")
+        return payload
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument(
         "--origin-id",
         help="WSJ origin id (SB… / WP-WSJ-…), from app or public articleId",
     )
-    src.add_argument("--url", help="WSJ article URL; resolves origin id then fetches")
+    src.add_argument(
+        "--url",
+        help="WSJ article URL; resolved through the browser metadata resolver",
+    )
     src.add_argument(
         "--from-json",
         type=Path,
@@ -600,11 +859,29 @@ def main() -> None:
         help="Explicitly bypass only the 15-minute local cooldown once",
     )
     ap.add_argument(
+        "--network-retries",
+        type=int,
+        default=0,
+        help=(
+            f"Bounded retries for transient transport faults only "
+            f"(0-{MAX_NETWORK_RETRIES}, default 0)"
+        ),
+    )
+    ap.add_argument(
+        "--insecure",
+        action="store_true",
+        help=(
+            "Disable TLS certificate/hostname verification for THIS run only; "
+            "never automatic, never persistent, never used to recover from a "
+            "certificate error"
+        ),
+    )
+    ap.add_argument(
         "--print-md",
         action="store_true",
         help="Also print Markdown to stdout after saving",
     )
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.from_json:
         try:
@@ -628,14 +905,21 @@ def main() -> None:
             "on your own ArticleContent capture."
         )
     validate_template(template)
+    validate_network_retries(args.network_retries)
+
+    # Validate TLS trust (including any explicit WSJ_CA_BUNDLE) before any
+    # network activity, so a broken local trust store costs nothing.
+    context = safe_tls_context(insecure=args.insecure)
 
     if args.url:
-        origin_id = resolve_origin_from_url(args.url)
+        origin_id = resolve_origin_via_browser(args.url)
         print(f"Resolved origin id: {origin_id}")
     else:
         origin_id = normalize_origin_id(args.origin_id)
 
-    payload = fetch_remote(template, origin_id, args.allow_once)
+    payload = fetch_remote(
+        template, origin_id, args.allow_once, context, args.network_retries
+    )
     article = extract_article_from_response(payload)
     # Prefer server-reported origin id for filename when present
     out, title = write_article(article, article.get("originId") or origin_id)
