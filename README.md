@@ -38,6 +38,7 @@ dependencies or configure external accounts.
 | [`bilibili-hub`](skills/bilibili-hub/) | Read and write Bilibili data with cookie-based authentication. |
 | [`business-reading-curator`](skills/business-reading-curator/) | Curate source-verified English business reading packs with durable history and deduplication. |
 | [`codex-image`](skills/codex-image/) | Generate images through Codex and send Telegram albums. |
+| [`deepseek-search`](skills/deepseek-search/) | Search and fetch web pages through the paid DeepSeek Search API (requires `DEEPSEEK_API_KEY`). |
 | [`loon-plugin`](skills/loon-plugin/) | Build, debug, package, and publish Loon `.plugin` / `.lpx` files. |
 | [`pixiv-novel-extractor`](skills/pixiv-novel-extractor/) | Extract public and authenticated Pixiv novels into Markdown or JSON. |
 | [`text-redaction`](skills/text-redaction/) | Redact emails and articles: keep the topic and reasoning, remove names and companies. |
