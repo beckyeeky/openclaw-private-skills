@@ -123,9 +123,8 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(result['photo_count'],3)
 
 
-# Real geometry from https://x.com/milky_isa0/status/2112308220924686782: two portraits
-# and two landscapes. A pixel-exact row cannot avoid blank area here, so --layout auto
-# resamples to the smallest height instead.
+# Mixed-height geometry seen in the wild: two portraits and two landscapes. A pixel-exact
+# row cannot avoid blank area here, so --layout auto resamples to the smallest height instead.
 MIXED_SIZES=[(1152,2048),(1152,2048),(2048,1152),(2048,1152)]
 
 class LayoutTests(unittest.TestCase):
