@@ -14,6 +14,7 @@ code, so the PNG geometry, white background and pixel limit never depend on the 
 """
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -73,25 +74,85 @@ def decode_result(data):
     return json.JSONDecoder().raw_decode(data['text'].lstrip())[0]
 
 
-def merge(paths, output):
-    images = []
+def _flatten(image, background):
+    """Composite any source transparency onto the requested background."""
+    if background == 'transparent':
+        return image.convert('RGBA')
+    needs_mask = image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info)
+    if not needs_mask:
+        return image.convert('RGB')
+    rgba = image.convert('RGBA')
+    canvas = Image.new('RGB', rgba.size, background)
+    canvas.paste(rgba, mask=rgba.getchannel('A'))
+    return canvas
+
+
+def _resolve_layout(images, layout, fit_height):
+    """Return (resolved_layout, fit_target).
+
+    ``auto`` keeps the pixel-exact row when every photo shares a height, and only
+    resamples when the row would otherwise pad blank area.
+    """
+    heights = {image.height for image in images}
+    if layout == 'auto':
+        layout = 'row' if len(heights) == 1 else 'fit'
+    if layout != 'fit':
+        return layout, None
+    if fit_height == 'min':
+        target = min(heights)
+    elif fit_height == 'max':
+        target = max(heights)
+    else:
+        target = int(fit_height)
+    if target < 1:
+        raise ValueError('--fit-height must be positive')
+    return layout, target
+
+
+def _rows_for(images, layout):
+    if layout == 'row':
+        return [list(images)]
+    if layout == 'stack':
+        return [[image] for image in images]
+    columns = max(1, math.ceil(math.sqrt(len(images))))
+    return [list(images[i:i + columns]) for i in range(0, len(images), columns)]
+
+
+def merge(paths, output, layout='auto', fit_height='min', background='white'):
+    images, scaled = [], []
     try:
         for path in paths:
             with Image.open(path) as source:
                 source.load()
-                rgba = source.convert('RGBA')
-                rgb = Image.new('RGB', rgba.size, 'white')
-                rgb.paste(rgba, mask=rgba.getchannel('A'))
-                images.append(rgb)
+                images.append(_flatten(source, background))
         if not images:
             raise ValueError('no photos to merge')
-        width, height = sum(i.width for i in images), max(i.height for i in images)
+        original_sizes = [list(image.size) for image in images]
+        resolved, target = _resolve_layout(images, layout, fit_height)
+        drawn, scale_factors = list(images), [1.0] * len(images)
+        if resolved == 'fit':
+            drawn, scale_factors = [], []
+            for image in images:
+                factor = target / image.height
+                scaled_image = image.resize((max(1, round(image.width * factor)), target), Image.Resampling.LANCZOS)
+                scaled.append(scaled_image)
+                drawn.append(scaled_image)
+                scale_factors.append(round(factor, 4))
+        rows = _rows_for(drawn, 'row' if resolved == 'fit' else resolved)
+        row_heights = [max(image.height for image in row) for row in rows]
+        width, height = max(sum(image.width for image in row) for row in rows), sum(row_heights)
         if width * height > 150_000_000:
-            raise ValueError('output exceeds 150 million pixel memory safety limit; no resizing performed')
-        canvas = Image.new('RGB', (width, height), 'white')
-        x = 0
-        for image in images:
-            canvas.paste(image, (x, 0)); x += image.width
+            raise ValueError('output exceeds 150 million pixel memory safety limit; no PNG written')
+        canvas = Image.new('RGB' if background != 'transparent' else 'RGBA',
+                           (width, height), background if background != 'transparent' else (0, 0, 0, 0))
+        y = 0
+        for row, row_height in zip(rows, row_heights):
+            x = 0
+            for image in row:
+                canvas.paste(image, (x, y), image if image.mode == 'RGBA' else None)
+                x += image.width
+            y += row_height
+        covered = sum(image.width * image.height for image in drawn)
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=output.parent, suffix='.png', delete=False) as f:
@@ -103,8 +164,14 @@ def merge(paths, output):
             temporary.replace(output)
         finally:
             temporary.unlink(missing_ok=True)
-        return {'width':width, 'height':height, 'source_sizes':[list(i.size) for i in images], 'bytes':output.stat().st_size}
+        return {'width':width, 'height':height, 'source_sizes':[list(image.size) for image in drawn],
+                'original_sizes':original_sizes, 'layout':resolved, 'resampled':resolved == 'fit',
+                'scale_factors':scale_factors, 'fit_height':target, 'background':background,
+                'white_pct':round((1 - covered / (width * height)) * 100, 1),
+                'bytes':output.stat().st_size}
     finally:
+        for image in scaled:
+            image.close()
         for image in images:
             image.close()
 
@@ -369,7 +436,15 @@ def run(args):
                 path = Path(directory) / str(photo['index'])
                 download(photo['url'], path)
                 paths.append(path)
-            validation = merge(paths, output)
+            validation = merge(paths, output, layout=args.layout,
+                               fit_height=args.fit_height, background=args.background)
+            singles = []
+            if args.singles:
+                for number, photo in enumerate(photos, 1):
+                    suffix = Path(urllib.parse.urlsplit(photo['url']).path).suffix or '.jpg'
+                    target = output.parent / ('x-%s-%02d%s' % (tweet_id, number, suffix))
+                    shutil.copyfile(paths[number - 1], target)
+                    singles.append(str(target))
         completeness = dict(collected['completeness'])
         completeness['expected_count'] = args.expected_count
         completeness['photo_count'] = len(paths)
@@ -377,6 +452,8 @@ def run(args):
                   'fallback_reason': collected['fallback_reason'],
                   'photo_count': len(paths), 'output': str(output),
                   'completeness': completeness, 'expected_count': args.expected_count, **validation}
+        if singles:
+            result['singles'] = singles
         link = minis_url(output)
         if link:
             result['minis_url'] = link
@@ -394,6 +471,13 @@ def build_parser():
     parser.add_argument('--output', help='target PNG path (default: --output > MINIS_ATTACHMENTS_DIR > ./x-<id>-merged.png)')
     parser.add_argument('--tab-id', type=int)
     parser.add_argument('--expected-count', type=int, choices=range(1, 5))
+    parser.add_argument('--layout', choices=('auto', 'row', 'fit', 'grid', 'stack'), default='auto',
+                        help='auto: exact row when every photo shares a height, otherwise fit to the smallest height')
+    parser.add_argument('--fit-height', default='min',
+                        help='fit target: min|max or a pixel height; only used by --layout fit/auto')
+    parser.add_argument('--background', choices=('white', 'black', 'transparent'), default='white')
+    parser.add_argument('--singles', action='store_true',
+                        help='also write every source photo next to the merged PNG as x-<id>-NN.<ext>')
     parser.add_argument('--via', choices=('auto', 'metadata', 'browser'), default='auto',
                         help='photo channel: metadata first (default auto), browser only, or both for cross-checking')
     parser.add_argument('--verify-both', action='store_true',

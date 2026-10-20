@@ -22,4 +22,16 @@ Metadata raises a legal fallback only for: HTTP 404, tombstone, `photos` + `medi
 
 ## Output path
 
-`--output` > `MINIS_ATTACHMENTS_DIR` > `./x-<tweet_id>-merged.png`. `output` is always absolute; `minis_url` appears only when the file really sits under `/var/minis` or `MINIS_ATTACHMENTS_DIR`, and is never fabricated. Transparent inputs are composited onto white; pixel dimensions are preserved (no EXIF rotation or rescaling). No browser cookies or tokens are exported.
+`--output` > `MINIS_ATTACHMENTS_DIR` > `./x-<tweet_id>-merged.png`. `output` is always absolute; `minis_url` appears only when the file really sits under `/var/minis` or `MINIS_ATTACHMENTS_DIR`, and is never fabricated. No browser cookies or tokens are exported.
+
+## Layout and blank area
+
+Blank area is geometry, not a layout bug: `white_pct = 1 − (photo area ÷ canvas area)`. Re-grouping photos cannot change it — with two 1152×2048 portraits and two 2048×1152 landscapes, `row`, `grid` and `stack` all report 28.0%, only the shape of the gap moves. Compact the canvas by resampling or do not merge at all.
+
+- `--layout auto` (default): equal heights → `row`, pixel-exact, `resampled=false`, `white_pct=0`. Mixed heights → `fit` to the smallest height (downscale only, never invent pixels), `resampled=true`, `scale_factors` per photo, `white_pct=0`.
+- `--layout row|grid|stack`: original pixels, honest `white_pct`. `grid` uses `ceil(sqrt(n))` columns.
+- `--fit-height min|max|<px>`: `min` never upscales; `max` keeps the tallest and upscales the rest; a number forces that height.
+- `--background white|black|transparent`: transparent keeps RGBA (gaps become alpha 0) instead of painting white.
+- `--singles`: writes each source photo untouched as `x-<id>-NN.<ext>` beside the merged PNG and lists them under `singles`. Best answer when the user cares about the originals.
+
+Pixel dimensions are otherwise preserved (no EXIF rotation). Outputs above 150 million pixels are refused before encoding.
