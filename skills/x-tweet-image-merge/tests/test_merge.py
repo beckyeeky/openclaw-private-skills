@@ -122,7 +122,101 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(result['source'],'metadata')
         self.assertEqual(result['photo_count'],3)
 
+
+# Mixed-height geometry seen in the wild: two portraits and two landscapes. A pixel-exact
+# row cannot avoid blank area here, so --layout auto resamples to the smallest height instead.
+MIXED_SIZES=[(1152,2048),(1152,2048),(2048,1152),(2048,1152)]
+
+class LayoutTests(unittest.TestCase):
+    def setUp(self):
+        self.directory=tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.paths=[]
+        for index,(width,height) in enumerate(MIXED_SIZES,1):
+            path=Path(self.directory.name)/('p%d.png'%index)
+            Image.new('RGB',(width,height),(10*index,20*index,30*index)).save(path)
+            self.paths.append(path)
+        self.out=Path(self.directory.name)/'out.png'
+
+    def test_auto_fits_when_heights_differ(self):
+        result=m.merge(self.paths,self.out)
+        self.assertEqual(result['layout'],'fit')
+        self.assertTrue(result['resampled'])
+        self.assertEqual(result['fit_height'],1152)
+        self.assertEqual((result['width'],result['height']),(5392,1152))
+        self.assertEqual(result['scale_factors'],[0.5625,0.5625,1.0,1.0])
+        self.assertEqual(result['white_pct'],0.0)
+        self.assertEqual(result['original_sizes'],[[w,h] for w,h in MIXED_SIZES])
+        self.assertEqual(result['source_sizes'],[[648,1152],[648,1152],[2048,1152],[2048,1152]])
+
+    def test_row_keeps_pixels_and_reports_blank_area(self):
+        result=m.merge(self.paths,self.out,layout='row')
+        self.assertEqual(result['layout'],'row')
+        self.assertFalse(result['resampled'])
+        self.assertEqual((result['width'],result['height']),(6400,2048))
+        self.assertEqual(result['white_pct'],28.0)
+        with Image.open(self.out) as image:
+            self.assertEqual(image.getpixel((3000,1500)),(255,255,255))
+
+    def test_grid_and_stack_also_pad(self):
+        grid=m.merge(self.paths,self.out,layout='grid')
+        self.assertEqual((grid['width'],grid['height']),(4096,3200))
+        self.assertEqual(grid['white_pct'],28.0)
+        stack=m.merge(self.paths,self.out,layout='stack')
+        self.assertEqual((stack['width'],stack['height']),(2048,6400))
+        self.assertEqual(stack['white_pct'],28.0)
+
+    def test_equal_heights_stay_pixel_exact(self):
+        paths=[]
+        for index,size in enumerate([(300,400),(500,400)],1):
+            path=Path(self.directory.name)/('e%d.png'%index)
+            Image.new('RGB',size,'red').save(path); paths.append(path)
+        result=m.merge(paths,self.out)
+        self.assertEqual(result['layout'],'row')
+        self.assertFalse(result['resampled'])
+        self.assertEqual((result['width'],result['height']),(800,400))
+        self.assertEqual(result['white_pct'],0.0)
+
+    def test_fit_height_max_never_downscales(self):
+        result=m.merge(self.paths,self.out,layout='fit',fit_height='max')
+        self.assertEqual(result['fit_height'],2048)
+        self.assertEqual((result['width'],result['height']),(9586,2048))
+        self.assertEqual(result['scale_factors'],[1.0,1.0,1.7778,1.7778])
+
+    def test_transparent_background_keeps_alpha(self):
+        result=m.merge(self.paths,self.out,layout='row',background='transparent')
+        self.assertEqual(result['background'],'transparent')
+        with Image.open(self.out) as image:
+            self.assertEqual(image.mode,'RGBA')
+            self.assertEqual(image.getpixel((3000,1500))[3],0)
+            self.assertEqual(image.getpixel((100,100))[3],255)
+
 class CliJsonTests(unittest.TestCase):
+    def test_singles_and_layout_reach_the_output(self):
+        sizes=[(8,6),(6,8),(6,8)]
+        def fake_download(url,path):
+            Image.new('RGB',sizes[min(int(Path(path).name),3)-1],'red').save(path,format='JPEG')
+        with mock.patch.object(m,'fetch_tweet_json',lambda tweet_id:FIXTURE), \
+             mock.patch.object(m,'download',fake_download), \
+             tempfile.TemporaryDirectory() as directory:
+            args=m.build_parser().parse_args(['https://x.com/u/status/123','--singles','--background','transparent',
+                                              '--output',str(Path(directory)/'out.png')])
+            result=m.run(args)
+            self.assertEqual(result['status'],'ok')
+            self.assertEqual(result['layout'],'fit')
+            self.assertEqual(result['fit_height'],6)
+            self.assertTrue(result['resampled'])
+            self.assertEqual(result['background'],'transparent')
+            self.assertEqual(len(result['singles']),3)
+            self.assertEqual([Path(s).name for s in result['singles']],
+                             ['x-123-01.jpg','x-123-02.jpg','x-123-03.jpg'])
+            self.assertTrue(all(Path(s).exists() for s in result['singles']))
+            measured=[]
+            for single in result['singles']:
+                with Image.open(single) as image:
+                    measured.append(image.size)
+            self.assertEqual(measured,sizes)
+
     def test_metadata_success_json_contract(self):
         with mock.patch.object(m,'fetch_tweet_json',lambda tweet_id:FIXTURE), \
              mock.patch.object(m,'download',lambda url,path:Image.new('RGB',(4,3),'red').save(path,format='PNG')), \
@@ -146,13 +240,13 @@ class MergeTests(unittest.TestCase):
             a,b,out=[Path(d)/n for n in ('a.png','b.png','out.png')]
             Image.new('RGB',(3,2),'red').save(a)
             Image.new('RGB',(2,4),'blue').save(b)
-            result=m.merge([a,b],out)
+            result=m.merge([a,b],out,layout='row')
             self.assertEqual((result['width'],result['height']),(5,4))
             with Image.open(out) as image:
                 self.assertEqual(image.getpixel((0,0)),(255,0,0))
                 self.assertEqual(image.getpixel((3,0)),(0,0,255))
                 self.assertEqual(image.getpixel((0,3)),(255,255,255))
-            self.assertEqual(m.merge([a],out)['source_sizes'],[[3,2]])
+            self.assertEqual(m.merge([a],out,layout='row')['source_sizes'],[[3,2]])
     def test_failures(self):
         with tempfile.TemporaryDirectory() as d:
             out=Path(d)/'out.png'; bad=Path(d)/'bad';bad.write_text('not an image')
