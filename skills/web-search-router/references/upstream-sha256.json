@@ -1,0 +1,6 @@
+{
+  "deepseek-search/scripts/query.py": "1eef1c285205e2165353947846f1a43b0fb2a436e178263ed17752fea8e428b6",
+  "deepseek-search/scripts/tests/test_query.py": "d2fef9961f55a16de50f2328989d870575479981617a66b83ed6782bf666b647",
+  "exa-search/scripts/query.py": "0930f9c94d6a2ee4f9285521173502f7195621846ddfc3bb999e41da76c1bb16",
+  "tavily-search/scripts/search.py": "3126ba674e548fa5871ca98cb7d0334b31fd4fb4ff4c4bff8db4d36710ca14d1"
+}
