@@ -21,9 +21,23 @@ compatibility: Python 3.10+; Tavily requires tavily-python; at least one provide
 
 只检查存在且非空，不输出值；Tavily 多 Key 以原脚本 `load_keys()` 解析的非空列表为准。单 Key 缺失不能认定 Tavily 未配置。Exa 上游支持无 Key 的基础 MCP 使用，但本路由按用户要求仅选择已配置 Key 的引擎。配置存在不代表凭据有效。
 
+## 优先级覆盖
+
+可选路由变量 `SEARCH_PROVIDER_OVERRIDE` 由 Agent 在每次联网任务选路前读取；提供方脚本不解析它。读取规范化状态：
+
+```sh
+python3 -c 'import os; v=os.environ.get("SEARCH_PROVIDER_OVERRIDE", "").strip().lower(); print(v if v in ("exa", "deepseek", "tavily") else ("unset" if not v else "invalid"))'
+```
+
+- 允许值：`exa`、`deepseek`、`tavily`，忽略首尾空白和大小写。未设置或空字符串维持基础路由；非空非法值简短提示后回退，不回显原始值。
+- 有效覆盖将指定服务移到当前场景顺序首位，其余保持相对顺序。例如常规搜索覆盖为 `exa` 后为 `Exa → DeepSeek → Tavily`。首选、故障转移和补全均遵循调整后的顺序，跳过已尝试、缺少凭据或不支持当前操作的服务；调用次数限制不变。
+- 用户本次指定服务、要求比较或禁止跨提供方时，优先遵从用户要求。专有能力仍按实际支持情况选用；不得将普通 Search 当作 Research，不得放宽过滤条件或访问权限。
+- 不把变量值拼接为命令、路径或 URL；只使用上述允许值匹配固定提供方。不修改凭据、账户或额度，也不自动检测剩余额度。
+- 使用示例：设置 `SEARCH_PROVIDER_OVERRIDE=exa` 优先 Exa；改为 `deepseek` 或 `tavily` 切换，删除或清空变量恢复基础路由。
+
 ## 路由决策
 
-用户明确指定引擎或禁止向其他服务发送查询时优先遵从；禁止跨提供方时不自动降级。
+用户明确指定引擎或禁止向其他服务发送查询时优先遵从；禁止跨提供方时不自动降级。以下为基础路由，有效覆盖按上节调整顺序。
 
 | 路由 | 场景 | 首选与手册 |
 | --- | --- | --- |
@@ -40,9 +54,9 @@ compatibility: Python 3.10+; Tavily requires tavily-python; at least one provide
 每个引擎每轮最多调用一次（Exa 工具发现不计搜索调用），最多尝试三个引擎；不循环重试、不并行重复付费请求。
 
 1. 执行前检查凭据。无 Key 跳过；全部缺失时停止并提供对应环境变量设置链接。
-2. 常规/新闻：`DeepSeek → Tavily → Exa`；技术/概念/实体：`Exa → DeepSeek → Tavily`；多源研究或复杂正文：`Tavily → Exa → DeepSeek`。DeepSeek 已执行后需要技术补全时次序为 `Exa → Tavily`。跳过已尝试或不支持当前操作的提供方。
+2. 常规/新闻：`DeepSeek → Tavily → Exa`；技术/概念/实体：`Exa → DeepSeek → Tavily`；多源研究或复杂正文：`Tavily → Exa → DeepSeek`。DeepSeek 已执行后需要技术补全时次序为 `Exa → Tavily`。跳过已尝试或不支持当前操作的提供方。有效覆盖优先于本条的基础顺序。
 3. HTTP `401/402/429`、网络错误、超时、服务端错误自动切换。DeepSeek 必须加 `--retries 0`，避免上游默认重试延迟降级。它的错误 JSON 在 stderr；Exa 即使退出码 0 也须检查顶层 `error` 和 `result.isError`，不能仅看进程状态。
-4. DeepSeek Search `results` 为空，或可用数值 `rerank_score` 的最高值 **< 1.5** 时，保留已有结果并自动补全：技术/概念/实体优先 Exa，常规/新闻优先 Tavily。最高分恰为 1.5 不触发。缺失分数不等于低分，按来源和内容评估并说明。
+4. DeepSeek Search `results` 为空，或可用数值 `rerank_score` 的最高值 **< 1.5** 时，保留已有结果并自动补全：技术/概念/实体优先 Exa，常规/新闻优先 Tavily；有效覆盖时改用调整后的顺序，跳过已尝试或不可用的服务。最高分恰为 1.5 不触发。缺失分数不等于低分，按来源和内容评估并说明。
 5. Fetch 无正文、404 可换 Tavily Extract / Exa 对应正文工具；403 先判明是否权限/付费墙限制。只可使用合法公开可访问副本，不绕过访问控制。不可用时明确说明。
 6. `400`/参数校验失败先修正参数，不能把本地参数错误解释成服务不可用。跨引擎过滤语法须映射到其真实参数，不直接假定相同；无法保留约束时注明限制。
 7. Research 是独立异步能力。提交成功后用 request ID 查状态；超时或结果不确定时不要自动重新提交付费研究。普通 Search 降级不能冒充 Research。所有引擎失败时汇总提供方和安全错误类型，不声称联网成功。
